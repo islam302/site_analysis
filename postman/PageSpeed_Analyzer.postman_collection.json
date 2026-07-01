@@ -1,0 +1,310 @@
+{
+  "info": {
+    "name": "PageSpeed Analyzer API",
+    "description": "Website performance analysis via Google PageSpeed Insights.\n\nUsage:\n1. Set the `base_url` collection variable (default http://localhost:8000/api/v1).\n2. Run **Auth > Register** (or **Login**) once — the test script stores `access` & `refresh` automatically, and every other request inherits Bearer auth.\n3. Run **Analysis > Analyze** — it stores `report_id`. Analyze is public (works without auth). Then run **Report Detail** (re-run until status = completed; you need a Celery worker + a valid GOOGLE_PAGESPEED_API_KEY, or CELERY_TASK_ALWAYS_EAGER=True, for scores to populate).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000/api/v1", "type": "string" },
+    { "key": "access", "value": "", "type": "string" },
+    { "key": "refresh", "value": "", "type": "string" },
+    { "key": "report_id", "value": "", "type": "string" },
+    { "key": "user_id", "value": "", "type": "string" },
+    { "key": "username", "value": "ada", "type": "string" },
+    { "key": "email", "value": "ada@example.com", "type": "string" },
+    { "key": "password", "value": "StrongPass123!", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/register/", "host": ["{{base_url}}"], "path": ["auth", "register", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"first_name\": \"Ada\",\n  \"last_name\": \"Lovelace\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"password_confirm\": \"{{password}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.access) pm.collectionVariables.set('access', d.access);",
+                  "if (d.refresh) pm.collectionVariables.set('refresh', d.refresh);",
+                  "pm.test('registered', () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/login/", "host": ["{{base_url}}"], "path": ["auth", "login", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.access) pm.collectionVariables.set('access', d.access);",
+                  "if (d.refresh) pm.collectionVariables.set('refresh', d.refresh);",
+                  "pm.test('logged in', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token Refresh",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/token/refresh/", "host": ["{{base_url}}"], "path": ["auth", "token", "refresh", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"refresh\": \"{{refresh}}\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.access) pm.collectionVariables.set('access', d.access);",
+                  "if (d.refresh) pm.collectionVariables.set('refresh', d.refresh);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me - Get",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/auth/me/", "host": ["{{base_url}}"], "path": ["auth", "me", ""] }
+          }
+        },
+        {
+          "name": "Me - Update",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/me/", "host": ["{{base_url}}"], "path": ["auth", "me", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"first_name\": \"Augusta\"\n}" }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/password/change/", "host": ["{{base_url}}"], "path": ["auth", "password", "change", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"{{password}}\",\n  \"new_password\": \"StrongPass456!\",\n  \"new_password_confirm\": \"StrongPass456!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Password Reset - Request",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/password/reset/", "host": ["{{base_url}}"], "path": ["auth", "password", "reset", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\"\n}" }
+          }
+        },
+        {
+          "name": "Password Reset - Confirm",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/password/reset/confirm/", "host": ["{{base_url}}"], "path": ["auth", "password", "reset", "confirm", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"<uid-from-email>\",\n  \"token\": \"<token-from-email>\",\n  \"new_password\": \"StrongPass789!\",\n  \"new_password_confirm\": \"StrongPass789!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Email - Verify",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/email/verify/", "host": ["{{base_url}}"], "path": ["auth", "email", "verify", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"<token-from-email>\"\n}" }
+          }
+        },
+        {
+          "name": "Email - Resend Verification",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/email/verify/resend/", "host": ["{{base_url}}"], "path": ["auth", "email", "verify", "resend", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\"\n}" }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/logout/", "host": ["{{base_url}}"], "path": ["auth", "logout", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"refresh\": \"{{refresh}}\"\n}" }
+          }
+        },
+        {
+          "name": "My API Key - Get",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/auth/me/api-key/", "host": ["{{base_url}}"], "path": ["auth", "me", "api-key", ""] }
+          }
+        },
+        {
+          "name": "My API Key - Rotate",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/auth/me/api-key/", "host": ["{{base_url}}"], "path": ["auth", "me", "api-key", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List Users (+ API keys)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/admin/users/?ordering=-created_at",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "admin", "users", ""],
+              "query": [
+                { "key": "ordering", "value": "-created_at" },
+                { "key": "role", "value": "admin", "disabled": true },
+                { "key": "is_active", "value": "true", "disabled": true },
+                { "key": "search", "value": "ada", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "User Detail (+ API key)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/auth/admin/users/{{user_id}}/", "host": ["{{base_url}}"], "path": ["auth", "admin", "users", "{{user_id}}", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Google Speed",
+      "item": [
+        {
+          "name": "Analyze",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/google_speed/analyze/", "host": ["{{base_url}}"], "path": ["google_speed", "analyze", ""] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://www.wikipedia.org\",\n  \"strategy\": \"mobile\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('report_id', d.id);",
+                  "pm.test('accepted', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reports - List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/google_speed/reports/?ordering=-created_at",
+              "host": ["{{base_url}}"],
+              "path": ["google_speed", "reports", ""],
+              "query": [
+                { "key": "ordering", "value": "-created_at" },
+                { "key": "strategy", "value": "mobile", "disabled": true },
+                { "key": "status", "value": "completed", "disabled": true },
+                { "key": "url", "value": "wikipedia", "disabled": true },
+                { "key": "min_performance", "value": "50", "disabled": true },
+                { "key": "created_after", "value": "2026-01-01T00:00:00Z", "disabled": true },
+                { "key": "page", "value": "1", "disabled": true },
+                { "key": "page_size", "value": "20", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reports - Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/google_speed/reports/{{report_id}}/", "host": ["{{base_url}}"], "path": ["google_speed", "reports", "{{report_id}}", ""] }
+          }
+        },
+        {
+          "name": "Reports - Delete (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/google_speed/reports/{{report_id}}/", "host": ["{{base_url}}"], "path": ["google_speed", "reports", "{{report_id}}", ""] }
+          }
+        },
+        {
+          "name": "History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/google_speed/history/", "host": ["{{base_url}}"], "path": ["google_speed", "history", ""] }
+          }
+        }
+      ]
+    }
+  ]
+}

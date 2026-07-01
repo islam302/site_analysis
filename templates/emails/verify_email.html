@@ -1,0 +1,18 @@
+{% extends "emails/base_email.html" %}
+{% block title %}Verify your email{% endblock %}
+{% block content %}
+  <p>Hi {{ user.first_name }},</p>
+  <p>Thanks for signing up for Site Analysis. Please confirm your email address
+     to activate all features of your account.</p>
+  <p style="margin:28px 0;">
+    <a href="{{ verification_url }}"
+       style="background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;display:inline-block;font-weight:bold;">
+      Verify email address
+    </a>
+  </p>
+  <p style="color:#64748b;font-size:13px;">
+    If the button doesn't work, copy and paste this link into your browser:<br>
+    <a href="{{ verification_url }}">{{ verification_url }}</a>
+  </p>
+  <p style="color:#64748b;font-size:13px;">This link expires in 24 hours.</p>
+{% endblock %}

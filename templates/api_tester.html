@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PageSpeed Analyzer — API Tester</title>
+<style>
+  :root {
+    --bg:#0f172a; --panel:#1e293b; --panel2:#172033; --line:#334155;
+    --text:#e2e8f0; --muted:#94a3b8; --accent:#2563eb; --accent2:#1d4ed8;
+    --ok:#16a34a; --err:#dc2626; --warn:#d97706; --code:#0b1120;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px; line-height:1.5;
+  }
+  header {
+    position:sticky; top:0; z-index:10; background:var(--panel2);
+    border-bottom:1px solid var(--line); padding:12px 20px;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .badge { background:var(--accent); padding:2px 8px; border-radius:6px; font-size:12px; }
+  .grow { flex:1; }
+  .auth-state { font-size:12px; color:var(--muted); }
+  .auth-state.in { color:var(--ok); }
+  main { max-width:1180px; margin:0 auto; padding:20px; display:grid;
+          grid-template-columns:1fr 1fr; gap:16px; }
+  .full { grid-column:1 / -1; }
+  section {
+    background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px;
+  }
+  section h2 { margin:0 0 4px; font-size:14px; }
+  section .hint { color:var(--muted); font-size:12px; margin:0 0 12px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:8px 0 2px; }
+  input, select, textarea {
+    width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    padding:8px 10px; border-radius:6px; font-size:13px; font-family:inherit;
+  }
+  textarea { resize:vertical; min-height:60px; }
+  .row { display:flex; gap:10px; }
+  .row > * { flex:1; }
+  button {
+    margin-top:12px; background:var(--accent); color:#fff; border:0; padding:9px 14px;
+    border-radius:6px; font-size:13px; font-weight:600; cursor:pointer;
+  }
+  button:hover { background:var(--accent2); }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--text); }
+  button.danger { background:var(--err); }
+  button.sm { padding:5px 10px; font-size:12px; margin-top:8px; }
+  .resp { margin-top:12px; }
+  .resp .meta { font-size:12px; margin-bottom:6px; }
+  .pill { padding:2px 8px; border-radius:6px; font-weight:600; font-size:12px; }
+  .pill.ok { background:rgba(22,163,74,.18); color:#4ade80; }
+  .pill.err { background:rgba(220,38,38,.18); color:#f87171; }
+  .pill.warn { background:rgba(217,119,6,.18); color:#fbbf24; }
+  pre {
+    background:var(--code); border:1px solid var(--line); border-radius:8px; padding:12px;
+    overflow:auto; max-height:340px; margin:0; font-size:12px;
+    font-family:"SF Mono",Menlo,Consolas,monospace; white-space:pre-wrap; word-break:break-word;
+  }
+  .scores { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .score { flex:1; min-width:90px; text-align:center; background:var(--panel2);
+           border:1px solid var(--line); border-radius:8px; padding:8px; }
+  .score .v { font-size:20px; font-weight:700; }
+  .score .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .g90 { color:#4ade80; } .g50 { color:#fbbf24; } .g0 { color:#f87171; } .gna { color:var(--muted); }
+  a { color:#60a5fa; }
+  .links { font-size:12px; }
+  .links a { margin-right:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PageSpeed Analyzer <span class="badge">API Tester</span></h1>
+  <div class="links grow">
+    <a href="/api/docs/" target="_blank">Swagger</a>
+    <a href="/api/redoc/" target="_blank">ReDoc</a>
+    <a href="/api/schema/" target="_blank">Schema</a>
+  </div>
+  <div>
+    <label style="margin:0">Base URL</label>
+    <input id="baseUrl" style="width:240px" />
+  </div>
+  <div>
+    <div id="authState" class="auth-state">Not authenticated</div>
+    <button class="ghost sm" onclick="logout()">Clear token</button>
+  </div>
+</header>
+
+<main>
+  <!-- AUTH ------------------------------------------------------------- -->
+  <section>
+    <h2>Register</h2>
+    <p class="hint">POST /auth/register/ — returns access + refresh + user.</p>
+    <label>Username</label><input id="reg_username" value="ada">
+    <div class="row">
+      <div><label>First name</label><input id="reg_first" value="Ada"></div>
+      <div><label>Last name</label><input id="reg_last" value="Lovelace"></div>
+    </div>
+    <label>Email</label><input id="reg_email" value="ada@example.com">
+    <div class="row">
+      <div><label>Password</label><input id="reg_pw" value="StrongPass123!"></div>
+      <div><label>Confirm</label><input id="reg_pw2" value="StrongPass123!"></div>
+    </div>
+    <button onclick="register()">Register</button>
+    <div class="resp" id="resp_register"></div>
+  </section>
+
+  <section>
+    <h2>Login</h2>
+    <p class="hint">POST /auth/login/ — stores the access + refresh tokens.</p>
+    <label>Email</label><input id="log_email" value="ada@example.com">
+    <label>Password</label><input id="log_pw" value="StrongPass123!">
+    <button onclick="login()">Login</button>
+    <div class="resp" id="resp_login"></div>
+  </section>
+
+  <section>
+    <h2>Current user (me)</h2>
+    <p class="hint">GET / PATCH /auth/me/</p>
+    <div class="row">
+      <button onclick="me()">GET me</button>
+      <button class="ghost" onclick="patchMe()">PATCH first name →</button>
+    </div>
+    <label>New first name</label><input id="me_first" value="Augusta">
+    <div class="resp" id="resp_me"></div>
+  </section>
+
+  <section>
+    <h2>Password &amp; email</h2>
+    <p class="hint">Change password / request reset / verify email.</p>
+    <div class="row">
+      <div><label>Current pw</label><input id="cp_cur" value="StrongPass123!"></div>
+      <div><label>New pw</label><input id="cp_new" value="StrongPass456!"></div>
+    </div>
+    <button class="sm" onclick="changePassword()">Change password</button>
+    <label>Reset / resend / verify email</label><input id="pw_email" value="ada@example.com">
+    <div class="row">
+      <button class="ghost sm" onclick="resetRequest()">Request reset</button>
+      <button class="ghost sm" onclick="resendVerify()">Resend verify</button>
+      <button class="ghost sm" onclick="logoutServer()">Logout (blacklist)</button>
+    </div>
+    <label>Verify email token</label><input id="verify_token" placeholder="token from email link">
+    <button class="sm" onclick="verifyEmail()">Verify email</button>
+    <div class="resp" id="resp_pw"></div>
+  </section>
+
+  <!-- ANALYSIS --------------------------------------------------------- -->
+  <section class="full">
+    <h2>Analyze a URL</h2>
+    <p class="hint">POST /google_speed/analyze/ — async (202). The report starts <b>pending</b>; a worker fills the scores. Poll with “Refresh”.</p>
+    <div class="row">
+      <div style="flex:3"><label>URL</label><input id="an_url" value="https://www.wikipedia.org"></div>
+      <div><label>Strategy</label>
+        <select id="an_strategy"><option>mobile</option><option>desktop</option></select>
+      </div>
+    </div>
+    <button onclick="analyze()">Submit analysis</button>
+    <span id="an_poll_wrap" style="display:none">
+      <button class="ghost" onclick="refreshReport()">↻ Refresh report</button>
+      <label style="display:inline-block;margin-left:8px">Report id</label>
+      <input id="an_report_id" style="width:300px;display:inline-block">
+    </span>
+    <div id="scoreCards" class="scores" style="display:none"></div>
+    <div class="resp" id="resp_analyze"></div>
+  </section>
+
+  <section>
+    <h2>Reports list</h2>
+    <p class="hint">GET /google_speed/reports/ — filter &amp; order.</p>
+    <div class="row">
+      <div><label>strategy</label>
+        <select id="rl_strategy"><option value="">any</option><option>mobile</option><option>desktop</option></select>
+      </div>
+      <div><label>status</label>
+        <select id="rl_status"><option value="">any</option><option>pending</option><option>completed</option><option>failed</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>min_performance</label><input id="rl_minperf" type="number" placeholder="0-100"></div>
+      <div><label>ordering</label>
+        <select id="rl_order">
+          <option value="-created_at">newest</option>
+          <option value="created_at">oldest</option>
+          <option value="-performance_score">perf desc</option>
+          <option value="performance_score">perf asc</option>
+          <option value="-seo_score">seo desc</option>
+        </select>
+      </div>
+    </div>
+    <button onclick="listReports()">List reports</button>
+    <div class="resp" id="resp_list"></div>
+  </section>
+
+  <section>
+    <h2>Report detail / delete</h2>
+    <p class="hint">GET / DELETE /google_speed/reports/{id}/ (soft delete).</p>
+    <label>Report id</label><input id="rd_id" placeholder="uuid">
+    <div class="row">
+      <button onclick="reportDetail()">GET detail</button>
+      <button class="danger" onclick="deleteReport()">DELETE</button>
+    </div>
+    <div class="resp" id="resp_detail"></div>
+  </section>
+
+  <section>
+    <h2>History</h2>
+    <p class="hint">GET /google_speed/history/ — unique URLs + counts (cached 5 min).</p>
+    <button onclick="history()">Get history</button>
+    <div class="resp" id="resp_history"></div>
+  </section>
+</main>
+
+<script>
+// ---- token + base -------------------------------------------------------
+const LS = window.localStorage;
+const baseInput = document.getElementById("baseUrl");
+baseInput.value = LS.getItem("ps_base") || window.location.origin;
+baseInput.addEventListener("change", () => LS.setItem("ps_base", baseInput.value.trim()));
+
+function apiBase() { return (baseInput.value.trim() || window.location.origin).replace(/\/$/, "") + "/api/v1"; }
+function getAccess() { return LS.getItem("ps_access") || ""; }
+function getRefresh() { return LS.getItem("ps_refresh") || ""; }
+function setTokens(access, refresh) {
+  if (access) LS.setItem("ps_access", access);
+  if (refresh) LS.setItem("ps_refresh", refresh);
+  renderAuth();
+}
+function logout() { LS.removeItem("ps_access"); LS.removeItem("ps_refresh"); LS.removeItem("ps_email"); renderAuth(); }
+function renderAuth() {
+  const el = document.getElementById("authState");
+  if (getAccess()) {
+    el.textContent = "● " + (LS.getItem("ps_email") || "authenticated");
+    el.classList.add("in");
+  } else {
+    el.textContent = "Not authenticated";
+    el.classList.remove("in");
+  }
+}
+
+// ---- core fetch helper --------------------------------------------------
+async function api(method, path, body, useAuth = true) {
+  const headers = { "Content-Type": "application/json" };
+  if (useAuth && getAccess()) headers["Authorization"] = "Bearer " + getAccess();
+  let res, data, text;
+  try {
+    res = await fetch(apiBase() + path, {
+      method, headers, body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    return { ok:false, status:0, data:{ error:"Network/CORS error: " + e.message } };
+  }
+  text = await res.text();
+  try { data = text ? JSON.parse(text) : {}; } catch { data = { raw:text }; }
+  return { ok:res.ok, status:res.status, data };
+}
+
+function render(id, r) {
+  const cls = r.status === 0 ? "err" : r.status < 300 ? "ok" : r.status < 500 ? "warn" : "err";
+  const label = r.status === 0 ? "ERR" : r.status;
+  document.getElementById(id).innerHTML =
+    `<div class="meta"><span class="pill ${cls}">${label}</span></div>` +
+    `<pre>${escapeHtml(JSON.stringify(r.data, null, 2))}</pre>`;
+}
+function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c])); }
+
+// ---- auth actions -------------------------------------------------------
+async function register() {
+  const r = await api("POST", "/auth/register/", {
+    username: val("reg_username"),
+    first_name: val("reg_first"), last_name: val("reg_last"),
+    email: val("reg_email"), password: val("reg_pw"), password_confirm: val("reg_pw2"),
+  }, false);
+  if (r.ok) { setTokens(r.data.access, r.data.refresh); LS.setItem("ps_email", r.data.user?.email || ""); }
+  render("resp_register", r);
+}
+async function login() {
+  const r = await api("POST", "/auth/login/", { email: val("log_email"), password: val("log_pw") }, false);
+  if (r.ok) { setTokens(r.data.access, r.data.refresh); LS.setItem("ps_email", r.data.user?.email || ""); }
+  render("resp_login", r);
+}
+async function logoutServer() {
+  const r = await api("POST", "/auth/logout/", { refresh: getRefresh() });
+  if (r.ok) logout();
+  render("resp_pw", r);
+}
+async function me() { render("resp_me", await api("GET", "/auth/me/")); }
+async function patchMe() { render("resp_me", await api("PATCH", "/auth/me/", { first_name: val("me_first") })); }
+async function changePassword() {
+  const np = val("cp_new");
+  const r = await api("POST", "/auth/password/change/", {
+    current_password: val("cp_cur"), new_password: np, new_password_confirm: np,
+  });
+  render("resp_pw", r);
+}
+async function resetRequest() { render("resp_pw", await api("POST", "/auth/password/reset/", { email: val("pw_email") }, false)); }
+async function resendVerify() { render("resp_pw", await api("POST", "/auth/email/verify/resend/", { email: val("pw_email") }, false)); }
+async function verifyEmail() { render("resp_pw", await api("POST", "/auth/email/verify/", { token: val("verify_token") }, false)); }
+
+// ---- analysis actions ---------------------------------------------------
+function scoreClass(v) { return v == null ? "gna" : v >= 90 ? "g90" : v >= 50 ? "g50" : "g0"; }
+function renderScores(rep) {
+  const wrap = document.getElementById("scoreCards");
+  if (!rep || rep.status !== "completed") { wrap.style.display = "none"; return; }
+  const cards = [
+    ["Performance", rep.performance_score], ["Accessibility", rep.accessibility_score],
+    ["Best practices", rep.best_practices_score], ["SEO", rep.seo_score],
+    ["LCP (s)", rep.largest_contentful_paint], ["CLS", rep.cumulative_layout_shift],
+  ];
+  wrap.innerHTML = cards.map(([l, v]) =>
+    `<div class="score"><div class="v ${["Performance","Accessibility","Best practices","SEO"].includes(l)?scoreClass(v):""}">${v == null ? "—" : v}</div><div class="l">${l}</div></div>`
+  ).join("");
+  wrap.style.display = "flex";
+}
+async function analyze() {
+  const r = await api("POST", "/google_speed/analyze/", { url: val("an_url"), strategy: val("an_strategy") });
+  render("resp_analyze", r);
+  if (r.ok && r.data.id) {
+    document.getElementById("an_poll_wrap").style.display = "inline";
+    document.getElementById("an_report_id").value = r.data.id;
+    document.getElementById("rd_id").value = r.data.id;
+    renderScores(r.data);
+  }
+}
+async function refreshReport() {
+  const id = val("an_report_id");
+  if (!id) return;
+  const r = await api("GET", `/google_speed/reports/${id}/`);
+  render("resp_analyze", r);
+  if (r.ok) renderScores(r.data);
+}
+async function listReports() {
+  const p = new URLSearchParams();
+  if (val("rl_strategy")) p.set("strategy", val("rl_strategy"));
+  if (val("rl_status")) p.set("status", val("rl_status"));
+  if (val("rl_minperf")) p.set("min_performance", val("rl_minperf"));
+  if (val("rl_order")) p.set("ordering", val("rl_order"));
+  render("resp_list", await api("GET", "/google_speed/reports/?" + p.toString()));
+}
+async function reportDetail() {
+  const id = val("rd_id"); if (!id) return;
+  render("resp_detail", await api("GET", `/google_speed/reports/${id}/`));
+}
+async function deleteReport() {
+  const id = val("rd_id"); if (!id) return;
+  render("resp_detail", await api("DELETE", `/google_speed/reports/${id}/`));
+}
+async function history() { render("resp_history", await api("GET", "/google_speed/history/")); }
+
+function val(id) { return document.getElementById(id).value.trim(); }
+renderAuth();
+</script>
+</body>
+</html>

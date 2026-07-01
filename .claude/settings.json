@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"exit=$?\")",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python -m pytest -q -p no:cacheprovider)",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python -m pytest \"apps/users/tests/test_services.py::test_authenticate_user_success\" -q -p no:cacheprovider --tb=short)",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python -m pytest \"apps/users/tests/test_services.py::test_authenticate_user_success\" -p no:cacheprovider --tb=long)",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: DJANGO_SETTINGS_MODULE=config.settings.test python -c ' *)",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --validate --fail-on-warn --file /tmp/schema.yml)",
+      "Bash(echo \"schema-exit=$?\")",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py makemigrations --check --dry-run)",
+      "Bash(export DB_ENGINE=django.db.backends.sqlite3 DB_NAME=/tmp/ps_smoke.sqlite3)",
+      "Bash(rm -f /tmp/ps_smoke.sqlite3)",
+      "Bash(pkill -f \"runserver 127.0.0.1:8009\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8011 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction Stop; \"killed PID $\\($_.OwningProcess\\)\" } catch {} }; Remove-Item -Force \"$env:TEMP\\\\ps_smoke.sqlite3\",\"/tmp/ps_smoke.sqlite3\",\"/tmp/srv.log\",\"/tmp/srv2.log\",\"/tmp/migrate.log\",\"/tmp/tester.html\" -ErrorAction SilentlyContinue; \"cleanup done\")",
+      "Bash(DJANGO_SETTINGS_MODULE=config.settings.development DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python -c ' *)",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python -c ' *)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8017 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force } catch {} }; Remove-Item -Force \".\\\\.srv.log\" -ErrorAction SilentlyContinue; \"cleaned\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8019 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force } catch {} }; Remove-Item -Force \".\\\\.srv.log\" -ErrorAction SilentlyContinue; \"cleaned\")",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --file docs/openapi.yaml)",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --format openapi-json --file docs/openapi.json)"
+    ]
+  }
+}

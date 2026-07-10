@@ -43,6 +43,10 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
+    from django.conf.urls.static import static
+
+    # Serve generated report PDFs (and other MEDIA) in development.
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     # Same-origin tester console at /tester/ — avoids CORS while developing.
     urlpatterns += [path("tester/", api_tester, name="api-tester")]
     try:

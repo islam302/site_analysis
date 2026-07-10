@@ -1,8 +1,5 @@
 """Production settings: secure, strict, observable."""
-import sentry_sdk
 from decouple import Csv, config
-from sentry_sdk.integrations.celery import CeleryIntegration
-from sentry_sdk.integrations.django import DjangoIntegration
 
 from config.settings.base import *  # noqa: F401,F403
 from config.settings.base import MIDDLEWARE, REST_FRAMEWORK
@@ -20,7 +17,9 @@ REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = (
 # ---------------------------------------------------------------------------
 # Security hardening
 # ---------------------------------------------------------------------------
-SECURE_SSL_REDIRECT = True
+# Enabled by default; set SECURE_SSL_REDIRECT=False when TLS is terminated
+# elsewhere or when serving plain HTTP behind the bundled Nginx.
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=True, cast=bool)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_HSTS_SECONDS = 31536000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
@@ -52,6 +51,10 @@ EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 # ---------------------------------------------------------------------------
 SENTRY_DSN = config("SENTRY_DSN", default="")
 if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.django import DjangoIntegration
+
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         integrations=[DjangoIntegration(), CeleryIntegration()],

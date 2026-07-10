@@ -11,7 +11,16 @@ sys.exit(0) if not s.connect_ex((os.environ['DB_HOST'], int(os.environ.get('DB_P
     echo "Database is up."
 fi
 
-# Apply migrations on container start (safe & idempotent).
-python manage.py migrate --noinput
+# Only the web service should migrate / collect static (set via env), so the
+# worker and beat containers don't race the migrations on startup.
+if [ "${DJANGO_MIGRATE:-0}" = "1" ]; then
+    echo "Applying migrations..."
+    python manage.py migrate --noinput
+fi
+
+if [ "${DJANGO_COLLECTSTATIC:-0}" = "1" ]; then
+    echo "Collecting static files..."
+    python manage.py collectstatic --noinput
+fi
 
 exec "$@"

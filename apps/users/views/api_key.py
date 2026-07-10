@@ -23,12 +23,12 @@ class MyApiKeyView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(responses={200: ApiKeySerializer}, summary="Get my API key")
+    @extend_schema(request=None, responses={200: ApiKeySerializer}, summary="Get my API key")
     def get(self, request: Request) -> Response:
         api_key = get_or_create_api_key(user=request.user)
         return Response(ApiKeySerializer(api_key).data, status=status.HTTP_200_OK)
 
-    @extend_schema(responses={200: ApiKeySerializer}, summary="Rotate my API key")
+    @extend_schema(request=None, responses={200: ApiKeySerializer}, summary="Rotate my API key")
     def post(self, request: Request) -> Response:
         api_key = rotate_api_key(user=request.user)
         return Response(ApiKeySerializer(api_key).data, status=status.HTTP_200_OK)

@@ -13,10 +13,16 @@
     { "key": "access", "value": "", "type": "string" },
     { "key": "refresh", "value": "", "type": "string" },
     { "key": "report_id", "value": "", "type": "string" },
+    { "key": "gtmetrix_report_id", "value": "", "type": "string" },
+    { "key": "speed_test_id", "value": "", "type": "string" },
+    { "key": "audit_id", "value": "", "type": "string" },
+    { "key": "ssl_report_id", "value": "", "type": "string" },
+    { "key": "crawl_job_id", "value": "", "type": "string" },
     { "key": "user_id", "value": "", "type": "string" },
     { "key": "username", "value": "ada", "type": "string" },
     { "key": "email", "value": "ada@example.com", "type": "string" },
-    { "key": "password", "value": "StrongPass123!", "type": "string" }
+    { "key": "password", "value": "StrongPass123!", "type": "string" },
+    { "key": "api_key", "value": "", "type": "string" }
   ],
   "item": [
     {
@@ -105,7 +111,19 @@
             "method": "GET",
             "header": [],
             "url": { "raw": "{{base_url}}/auth/me/", "host": ["{{base_url}}"], "path": ["auth", "me", ""] }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('user_id', d.id);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Me - Update",
@@ -186,7 +204,19 @@
             "method": "GET",
             "header": [],
             "url": { "raw": "{{base_url}}/auth/me/api-key/", "host": ["{{base_url}}"], "path": ["auth", "me", "api-key", ""] }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.key) pm.collectionVariables.set('api_key', d.key);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "My API Key - Rotate",
@@ -194,6 +224,28 @@
             "method": "POST",
             "header": [],
             "url": { "raw": "{{base_url}}/auth/me/api-key/", "host": ["{{base_url}}"], "path": ["auth", "me", "api-key", ""] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.key) pm.collectionVariables.set('api_key', d.key);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me (via X-API-Key)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }],
+            "url": { "raw": "{{base_url}}/auth/me/", "host": ["{{base_url}}"], "path": ["auth", "me", ""] },
+            "description": "Authenticate with the API key header instead of a JWT. Run 'My API Key - Get' first to populate {{api_key}}."
           }
         }
       ]
@@ -217,7 +269,19 @@
                 { "key": "search", "value": "ada", "disabled": true }
               ]
             }
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.results && d.results.length) pm.collectionVariables.set('user_id', d.results[0].id);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "User Detail (+ API key)",
@@ -302,6 +366,362 @@
             "method": "GET",
             "header": [],
             "url": { "raw": "{{base_url}}/google_speed/history/", "host": ["{{base_url}}"], "path": ["google_speed", "history", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "GTmetrix",
+      "item": [
+        {
+          "name": "Analyze",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/gtmetrix/analyze/", "host": ["{{base_url}}"], "path": ["gtmetrix", "analyze", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://www.wikipedia.org\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('gtmetrix_report_id', d.id);",
+                  "pm.test('accepted', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reports - List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/gtmetrix/reports/?ordering=-created_at",
+              "host": ["{{base_url}}"],
+              "path": ["gtmetrix", "reports", ""],
+              "query": [
+                { "key": "ordering", "value": "-created_at" },
+                { "key": "status", "value": "completed", "disabled": true },
+                { "key": "grade", "value": "A", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reports - Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/gtmetrix/reports/{{gtmetrix_report_id}}/", "host": ["{{base_url}}"], "path": ["gtmetrix", "reports", "{{gtmetrix_report_id}}", ""] }
+          }
+        },
+        {
+          "name": "Reports - Delete (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/gtmetrix/reports/{{gtmetrix_report_id}}/", "host": ["{{base_url}}"], "path": ["gtmetrix", "reports", "{{gtmetrix_report_id}}", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Speed Test (combined)",
+      "item": [
+        {
+          "name": "Analyze (PageSpeed + GTmetrix)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/speed_test/analyze/", "host": ["{{base_url}}"], "path": ["speed_test", "analyze", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://www.wikipedia.org\",\n  \"strategy\": \"mobile\"\n}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('speed_test_id', d.id);",
+                  "pm.test('accepted', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reports - List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/speed_test/reports/", "host": ["{{base_url}}"], "path": ["speed_test", "reports", ""] }
+          }
+        },
+        {
+          "name": "Reports - Detail (both results)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/speed_test/reports/{{speed_test_id}}/", "host": ["{{base_url}}"], "path": ["speed_test", "reports", "{{speed_test_id}}", ""] }
+          }
+        },
+        {
+          "name": "Reports - Delete (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/speed_test/reports/{{speed_test_id}}/", "host": ["{{base_url}}"], "path": ["speed_test", "reports", "{{speed_test_id}}", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SSL / TLS",
+      "item": [
+        {
+          "name": "Analyze",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/ssl/analyze/", "host": ["{{base_url}}"], "path": ["ssl", "analyze", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://www.wikipedia.org\"\n}" },
+            "description": "Queues an sslyze scan of the URL's host. Returns 202 pending; poll the report for the grade + findings (needs the Celery worker running)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('ssl_report_id', d.id);",
+                  "pm.test('accepted', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reports - List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ssl/reports/?ordering=-created_at",
+              "host": ["{{base_url}}"],
+              "path": ["ssl", "reports", ""],
+              "query": [
+                { "key": "ordering", "value": "-created_at" },
+                { "key": "grade", "value": "A+", "disabled": true },
+                { "key": "status", "value": "completed", "disabled": true },
+                { "key": "has_warnings", "value": "true", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reports - Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/ssl/reports/{{ssl_report_id}}/", "host": ["{{base_url}}"], "path": ["ssl", "reports", "{{ssl_report_id}}", ""] }
+          }
+        },
+        {
+          "name": "Reports - Delete (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/ssl/reports/{{ssl_report_id}}/", "host": ["{{base_url}}"], "path": ["ssl", "reports", "{{ssl_report_id}}", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Link Checker",
+      "item": [
+        {
+          "name": "Submit Crawl",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/crawl/", "host": ["{{base_url}}"], "path": ["crawl", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://www.wikipedia.org\",\n  \"max_links\": 200,\n  \"render_js\": false\n}" },
+            "description": "Queues a broken-link crawl. Returns 202 pending; poll progress/detail (needs the Celery worker running). Rate limited: 3/min, 20/day per IP.\n\nSet render_js=true for JavaScript/SPA sites (uses a headless browser to render the page before extracting links) — slower but finds JS-generated links."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('crawl_job_id', d.id);",
+                  "pm.test('accepted', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/crawl/", "host": ["{{base_url}}"], "path": ["crawl", ""] }
+          }
+        },
+        {
+          "name": "Job Detail (stats)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/crawl/{{crawl_job_id}}/", "host": ["{{base_url}}"], "path": ["crawl", "{{crawl_job_id}}", ""] }
+          }
+        },
+        {
+          "name": "Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/crawl/{{crawl_job_id}}/progress/", "host": ["{{base_url}}"], "path": ["crawl", "{{crawl_job_id}}", "progress", ""] }
+          }
+        },
+        {
+          "name": "Links (all / filtered)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/crawl/{{crawl_job_id}}/links/",
+              "host": ["{{base_url}}"],
+              "path": ["crawl", "{{crawl_job_id}}", "links", ""],
+              "query": [
+                { "key": "status_category", "value": "broken", "disabled": true },
+                { "key": "link_type", "value": "external", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Broken links only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/crawl/{{crawl_job_id}}/broken/", "host": ["{{base_url}}"], "path": ["crawl", "{{crawl_job_id}}", "broken", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Credits",
+      "item": [
+        {
+          "name": "Balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/credits/balance/", "host": ["{{base_url}}"], "path": ["credits", "balance", ""] }
+          }
+        },
+        {
+          "name": "Purchase (simulated)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/credits/purchase/", "host": ["{{base_url}}"], "path": ["credits", "purchase", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"amount\": 100,\n  \"description\": \"Starter pack\"\n}" }
+          }
+        },
+        {
+          "name": "Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/credits/transactions/", "host": ["{{base_url}}"], "path": ["credits", "transactions", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Accessibility (WAVE)",
+      "item": [
+        {
+          "name": "Run Audit",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/audits/run/", "host": ["{{base_url}}"], "path": ["audits", "run", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://www.wikipedia.org\"\n}" },
+            "description": "Runs a WAVE accessibility audit. Requires credits — buy some via Credits > Purchase first."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('audit_id', d.id);",
+                  "pm.test('created', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Audits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/audits/?ordering=-created_at",
+              "host": ["{{base_url}}"],
+              "path": ["audits", ""],
+              "query": [
+                { "key": "ordering", "value": "-created_at" },
+                { "key": "wcag_level", "value": "AA", "disabled": true },
+                { "key": "status", "value": "completed", "disabled": true },
+                { "key": "url", "value": "wikipedia", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Audit Detail (+ issues)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/audits/{{audit_id}}/", "host": ["{{base_url}}"], "path": ["audits", "{{audit_id}}", ""] }
+          }
+        },
+        {
+          "name": "Audit Issues",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/audits/{{audit_id}}/issues/",
+              "host": ["{{base_url}}"],
+              "path": ["audits", "{{audit_id}}", "issues", ""],
+              "query": [
+                { "key": "issue_type", "value": "error", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Audit (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/audits/{{audit_id}}/", "host": ["{{base_url}}"], "path": ["audits", "{{audit_id}}", ""] }
           }
         }
       ]

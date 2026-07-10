@@ -6,6 +6,7 @@ services:
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
+      DJANGO_MIGRATE: "1"
     volumes:
       - .:/app
     ports:

@@ -31,9 +31,19 @@ def auth_client():
     return client
 
 
-def test_reports_list_requires_auth():
+def test_reports_list_anonymous_is_empty():
+    # Reports list is public but scoped to the user; anonymous sees nothing.
     resp = APIClient().get(reverse("analysis:report-list"))
-    assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.data["count"] == 0
+
+
+def test_report_detail_public_by_id():
+    # Anyone with the UUID can poll a report (needed for anonymous submissions).
+    report = CompletedReportFactory(user=None)
+    resp = APIClient().get(reverse("analysis:report-detail", args=[report.id]))
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.data["id"] == str(report.id)
 
 
 def test_analyze_creates_pending_report(auth_client, mocker):

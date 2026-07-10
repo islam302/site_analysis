@@ -95,10 +95,7 @@ def process_analysis(*, report_id: str | uuid.UUID) -> AnalysisReport:
         report.status = ReportStatus.FAILED
         report.error_message = str(exc)
         report.save(update_fields=["status", "error_message", "updated_at"])
-        logger.warning(
-            "Analysis failed",
-            extra={"report_id": str(report.id), "error": str(exc)},
-        )
+        logger.warning("Analysis failed: %s (report %s)", str(exc), str(report.id))
         raise
 
     metrics = parse_pagespeed(raw)

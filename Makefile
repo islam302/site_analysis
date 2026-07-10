@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install run shell migrate migrations superuser test cov lint fmt typecheck \
-        celery beat check up down logs
+        celery beat check up down logs worker-solo prod-up prod-down prod-logs
 
 help:  ## Show this help.
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -46,6 +46,9 @@ typecheck:  ## Run static type checking.
 celery:  ## Run a Celery worker.
 	celery -A config worker -l info
 
+worker-solo:  ## Run a Celery worker with the solo pool (Windows).
+	celery -A config worker -l info --pool=solo
+
 beat:  ## Run the Celery beat scheduler.
 	celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 
@@ -57,3 +60,12 @@ down:  ## Stop the dev stack.
 
 logs:  ## Tail dev stack logs.
 	docker compose -f docker-compose.dev.yml logs -f
+
+prod-up:  ## Start the production stack (nginx, api, worker, beat, db, redis).
+	docker compose up --build -d
+
+prod-down:  ## Stop the production stack.
+	docker compose down
+
+prod-logs:  ## Tail production stack logs.
+	docker compose logs -f

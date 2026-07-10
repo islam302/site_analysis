@@ -2,16 +2,25 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PDF_ARABIC_FONT=/usr/share/fonts/truetype/freefont/FreeSans.ttf \
+    PDF_ARABIC_FONT_BOLD=/usr/share/fonts/truetype/freefont/FreeSansBold.ttf \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpq-dev gcc curl && \
+        libpq-dev gcc curl fonts-freefont-ttf && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements/ ./requirements/
 RUN pip install --no-cache-dir -r requirements/development.txt
+
+# Chromium + OS libraries for the link checker's optional JS rendering.
+RUN apt-get update && \
+    playwright install --with-deps chromium && \
+    chmod -R a+rx /ms-playwright && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY . .
 

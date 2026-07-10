@@ -3,6 +3,7 @@
 Clients may authenticate by sending their key in the ``X-API-Key`` header
 instead of a JWT. This runs after JWT in ``DEFAULT_AUTHENTICATION_CLASSES``.
 """
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
 from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
@@ -35,3 +36,13 @@ class ApiKeyAuthentication(BaseAuthentication):
 
     def authenticate_header(self, request) -> str:
         return "X-API-Key"
+
+
+class ApiKeyAuthenticationScheme(OpenApiAuthenticationExtension):
+    """Document ``ApiKeyAuthentication`` as an ``X-API-Key`` header scheme."""
+
+    target_class = "apps.users.authentication.ApiKeyAuthentication"
+    name = "ApiKeyAuth"
+
+    def get_security_definition(self, auto_schema) -> dict:
+        return {"type": "apiKey", "in": "header", "name": "X-API-Key"}

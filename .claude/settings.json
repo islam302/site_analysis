@@ -18,7 +18,9 @@
       "PowerShell(Get-NetTCPConnection -LocalPort 8017 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force } catch {} }; Remove-Item -Force \".\\\\.srv.log\" -ErrorAction SilentlyContinue; \"cleaned\")",
       "PowerShell(Get-NetTCPConnection -LocalPort 8019 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force } catch {} }; Remove-Item -Force \".\\\\.srv.log\" -ErrorAction SilentlyContinue; \"cleaned\")",
       "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --file docs/openapi.yaml)",
-      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --format openapi-json --file docs/openapi.json)"
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --format openapi-json --file docs/openapi.json)",
+      "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --file /tmp/s.yml)",
+      "Bash(docker build *)"
     ]
   }
 }

@@ -10,7 +10,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import mixins, status, viewsets
 from rest_framework.filters import OrderingFilter
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -61,14 +61,14 @@ class AnalyzeView(APIView):
 class AnalysisHistoryView(APIView):
     """GET /analysis/history/ — unique analyzed URLs with counts (cached 5 min)."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
         responses={200: AnalysisHistorySerializer(many=True)},
         summary="List analysis history",
     )
     def get(self, request: Request) -> Response:
-        history = get_analysis_history(user=request.user)
+        history = get_analysis_history(user=request.user) if request.user.is_authenticated else []
         return get_paginated_response(
             pagination_class=DefaultPagination,
             serializer_class=AnalysisHistorySerializer,
@@ -86,7 +86,7 @@ class AnalysisReportViewSet(
 ):
     """List / retrieve / soft-delete the authenticated user's reports."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     pagination_class = DefaultPagination
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = AnalysisReportFilter
@@ -102,7 +102,14 @@ class AnalysisReportViewSet(
     queryset = AnalysisReport.objects.none()
 
     def get_queryset(self):
-        return get_user_reports(user=self.request.user)
+        # Detail (retrieve) is public by UUID so anonymous submitters can poll
+        # their report; list/delete stay scoped to the authenticated owner.
+        if self.action == "retrieve":
+            return AnalysisReport.objects.all()
+        user = self.request.user
+        if not user.is_authenticated:
+            return AnalysisReport.objects.none()
+        return get_user_reports(user=user)
 
     def get_serializer_class(self):
         if self.action == "list":

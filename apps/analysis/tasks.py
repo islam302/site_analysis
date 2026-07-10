@@ -25,7 +25,7 @@ logger = logging.getLogger("apps.analysis")
     autoretry_for=(requests.ConnectionError, requests.Timeout, PageSpeedAPIError),
     retry_backoff=True,
     retry_backoff_max=600,
-    max_retries=5,
+    max_retries=3,
 )
 def run_pagespeed_analysis(self, report_id: str) -> str:
     """Process a pending analysis report via the PageSpeed Insights API.

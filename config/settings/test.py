@@ -15,6 +15,9 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
     "auth": None,
     "analysis_burst": None,
     "analysis_daily": None,
+    "audit": None,
+    "crawl_burst": None,
+    "crawl_daily": None,
 }
 
 # Fast password hashing for the test suite.
@@ -38,3 +41,16 @@ CACHES = {
 # key would raise PageSpeedConfigError, so set a dummy value and patch requests.
 GOOGLE_PAGESPEED_API_KEY = "test-pagespeed-key"
 PAGESPEED_REQUEST_TIMEOUT = 5
+
+# Same for GTmetrix — dummy key, client is mocked, no real polling.
+GTMETRIX_API_KEY = "test-gtmetrix-key"
+GTMETRIX_REQUEST_TIMEOUT = 5
+GTMETRIX_POLL_INTERVAL = 0
+GTMETRIX_POLL_MAX_SECONDS = 1
+
+# WAVE — dummy key; the client is mocked in tests.
+WAVE_API_KEY = "test-wave-key"
+WAVE_REQUEST_TIMEOUT = 5
+
+# SSL/TLS scan — the sslyze scanner is mocked in tests.
+SSL_SCAN_TIMEOUT = 5

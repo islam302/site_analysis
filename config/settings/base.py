@@ -47,6 +47,13 @@ LOCAL_APPS = [
     "apps.common",
     "apps.users",
     "apps.analysis",
+    "apps.gtmetrix",
+    "apps.speed_test",
+    "apps.credits",
+    "apps.audits",
+    "apps.ssl_check",
+    "apps.linkchecker",
+    "apps.full_report",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -150,7 +157,9 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "apps.users.authentication.ApiKeyAuthentication",
     ),
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    # Public by default; identity-scoped endpoints (me, api-key, admin, etc.)
+    # opt back into IsAuthenticated explicitly on their views.
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
     "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.DefaultPagination",
     "PAGE_SIZE": 20,
     "DEFAULT_FILTER_BACKENDS": (
@@ -171,6 +180,11 @@ REST_FRAMEWORK = {
         # Analysis submission limits (applied per authenticated user).
         "analysis_burst": "5/min",
         "analysis_daily": "100/day",
+        # Accessibility audit submissions (per authenticated user).
+        "audit": "10/min",
+        # Link-checker crawl submissions (per client IP).
+        "crawl_burst": "3/min",
+        "crawl_daily": "20/day",
     },
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
 }
@@ -195,13 +209,24 @@ SIMPLE_JWT = {
 # drf-spectacular (OpenAPI)
 # ---------------------------------------------------------------------------
 SPECTACULAR_SETTINGS = {
-    "TITLE": "PageSpeed Analyzer API",
-    "DESCRIPTION": "Website performance analysis via the Google PageSpeed Insights API.",
+    "TITLE": "Site Analysis API",
+    "DESCRIPTION": (
+        "Multi-tool website analysis platform: Google PageSpeed, GTmetrix, a "
+        "combined speed test, and WAVE accessibility audits — with JWT + API-key "
+        "auth and a credit/quota system."
+    ),
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/v[0-9]+",
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
+    # Disambiguate the several ``status`` enums (tools share pending/completed/
+    # failed; the full report adds "processing").
+    "ENUM_NAME_OVERRIDES": {
+        "ReportStatusEnum": "apps.analysis.constants.ReportStatus.choices",
+        "FullReportStatusEnum": "apps.full_report.constants.FullReportStatus.choices",
+        "CrawlStatusEnum": "apps.linkchecker.constants.CrawlStatus.choices",
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -262,9 +287,59 @@ CORS_ALLOW_CREDENTIALS = True
 GOOGLE_PAGESPEED_API_KEY = config("GOOGLE_PAGESPEED_API_KEY", default="")
 PAGESPEED_REQUEST_TIMEOUT = config("PAGESPEED_REQUEST_TIMEOUT", default=60, cast=int)
 
+# ---------------------------------------------------------------------------
+# SSL/TLS scanning (sslyze — local scanner, no external API or key)
+# ---------------------------------------------------------------------------
+SSL_SCAN_TIMEOUT = config("SSL_SCAN_TIMEOUT", default=30, cast=int)
+
+# ---------------------------------------------------------------------------
+# Link checker (httpx + BeautifulSoup, no external API)
+# ---------------------------------------------------------------------------
+# A browser-like UA by default — many sites serve a stripped/blocked page to
+# obvious bots. Override with LINKCHECKER_USER_AGENT if you want to identify the bot.
+LINKCHECKER_USER_AGENT = config(
+    "LINKCHECKER_USER_AGENT",
+    default=(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+)
+LINKCHECKER_TIMEOUT = config("LINKCHECKER_TIMEOUT", default=10, cast=int)
+# Extra time for JS rendering (Playwright), seconds.
+LINKCHECKER_RENDER_TIMEOUT = config("LINKCHECKER_RENDER_TIMEOUT", default=30, cast=int)
+LINKCHECKER_MAX_WORKERS = config("LINKCHECKER_MAX_WORKERS", default=20, cast=int)
+LINKCHECKER_MAX_LINKS = config("LINKCHECKER_MAX_LINKS", default=500, cast=int)
+# Verify TLS certs while crawling. Set False behind a TLS-intercepting proxy or
+# to reach sites with broken chains (the crawler checks reachability, not trust).
+LINKCHECKER_VERIFY_SSL = config("LINKCHECKER_VERIFY_SSL", default=True, cast=bool)
+
+# ---------------------------------------------------------------------------
+# WAVE accessibility API (WebAIM)
+# ---------------------------------------------------------------------------
+WAVE_API_KEY = config("WAVE_API_KEY", default="")
+WAVE_BASE_URL = config("WAVE_BASE_URL", default="https://wave.webaim.org/api/request")
+WAVE_REPORT_TYPE = config("WAVE_REPORT_TYPE", default=2, cast=int)
+WAVE_REQUEST_TIMEOUT = config("WAVE_REQUEST_TIMEOUT", default=60, cast=int)
+
+# ---------------------------------------------------------------------------
+# GTmetrix (API 2.0)
+# ---------------------------------------------------------------------------
+GTMETRIX_API_KEY = config("GTMETRIX_API_KEY", default="")
+GTMETRIX_BASE_URL = config("GTMETRIX_BASE_URL", default="https://gtmetrix.com/api/2.0/")
+GTMETRIX_REQUEST_TIMEOUT = config("GTMETRIX_REQUEST_TIMEOUT", default=30, cast=int)
+# Polling for an async GTmetrix test to finish.
+GTMETRIX_POLL_INTERVAL = config("GTMETRIX_POLL_INTERVAL", default=5, cast=int)
+GTMETRIX_POLL_MAX_SECONDS = config("GTMETRIX_POLL_MAX_SECONDS", default=300, cast=int)
+
 # Tokens for email verification & password reset (seconds).
 EMAIL_VERIFICATION_TIMEOUT = 60 * 60 * 24  # 24 hours
 PASSWORD_RESET_TIMEOUT = 60 * 60  # 1 hour
+
+# ---------------------------------------------------------------------------
+# PDF reports — Arabic-capable TTF font (needed to render the ``ar`` version).
+# ---------------------------------------------------------------------------
+PDF_ARABIC_FONT = config("PDF_ARABIC_FONT", default=r"C:\Windows\Fonts\arial.ttf")
+PDF_ARABIC_FONT_BOLD = config("PDF_ARABIC_FONT_BOLD", default=r"C:\Windows\Fonts\arialbd.ttf")
 
 # ---------------------------------------------------------------------------
 # Logging

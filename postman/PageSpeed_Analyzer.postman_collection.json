@@ -18,6 +18,8 @@
     { "key": "audit_id", "value": "", "type": "string" },
     { "key": "ssl_report_id", "value": "", "type": "string" },
     { "key": "crawl_job_id", "value": "", "type": "string" },
+    { "key": "full_report_id", "value": "", "type": "string" },
+    { "key": "validation_id", "value": "", "type": "string" },
     { "key": "user_id", "value": "", "type": "string" },
     { "key": "username", "value": "ada", "type": "string" },
     { "key": "email", "value": "ada@example.com", "type": "string" },
@@ -722,6 +724,123 @@
             "method": "DELETE",
             "header": [],
             "url": { "raw": "{{base_url}}/audits/{{audit_id}}/", "host": ["{{base_url}}"], "path": ["audits", "{{audit_id}}", ""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Full Report (all tools + PDF)",
+      "item": [
+        {
+          "name": "Run Full Report",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/full_report/", "host": ["{{base_url}}"], "path": ["full_report", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://una-oic.org\",\n  \"strategy\": \"desktop\",\n  \"lang\": \"en\"\n}" },
+            "description": "Runs ALL 6 tools (PageSpeed + GTmetrix + WAVE + SSL + broken-link check + structured-data validation) concurrently on a Celery worker and builds a styled PDF (with a recommendations section). Returns 202 with a job id + status_url. strategy: mobile or desktop. lang: en or ar. Public (no auth required). Needs the Celery worker running."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('full_report_id', d.id);",
+                  "pm.test('queued', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Report Status / Download URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/full_report/{{full_report_id}}/", "host": ["{{base_url}}"], "path": ["full_report", "{{full_report_id}}", ""] },
+            "description": "Poll until status = completed, then open download_url to get the PDF. tools_status shows each of the 6 tools' outcomes (pagespeed, gtmetrix, accessibility, ssl, links, structured_data)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Structured Data (Validator)",
+      "item": [
+        {
+          "name": "Submit Validation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/validate/", "host": ["{{base_url}}"], "path": ["validate", ""] },
+            "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://www.nytimes.com\"\n}" },
+            "description": "Queues Schema.org structured-data validation for a URL (extracts JSON-LD / Microdata / RDFa, validates against Schema.org rules). Returns 202 with a job id. Requires JWT auth. Rate limited: 10/min, 200/day per user. Needs the Celery worker running."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.id) pm.collectionVariables.set('validation_id', d.id);",
+                  "pm.test('queued', () => pm.response.to.have.status(202));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Validations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/validations/", "host": ["{{base_url}}"], "path": ["validations", ""] },
+            "description": "Lists your validation jobs (owner-scoped)."
+          }
+        },
+        {
+          "name": "Validation Detail (+ schemas + issues)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/validations/{{validation_id}}/", "host": ["{{base_url}}"], "path": ["validations", "{{validation_id}}", ""] },
+            "description": "Poll until status = completed. Returns totals (schemas/errors/warnings), which formats were found, and every schema with its issues nested."
+          }
+        },
+        {
+          "name": "Schemas (filterable)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/validations/{{validation_id}}/schemas/",
+              "host": ["{{base_url}}"],
+              "path": ["validations", "{{validation_id}}", "schemas", ""],
+              "query": [
+                { "key": "schema_type", "value": "Product", "disabled": true },
+                { "key": "format", "value": "json-ld", "disabled": true },
+                { "key": "is_valid", "value": "false", "disabled": true }
+              ]
+            },
+            "description": "Lists the structured-data objects found. Filter by schema_type, format (json-ld | microdata | rdfa) and is_valid."
+          }
+        },
+        {
+          "name": "Issues (filterable)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/validations/{{validation_id}}/issues/",
+              "host": ["{{base_url}}"],
+              "path": ["validations", "{{validation_id}}", "issues", ""],
+              "query": [
+                { "key": "severity", "value": "error", "disabled": true }
+              ]
+            },
+            "description": "Lists every issue across the job's schemas. Filter by severity (error | warning | info)."
           }
         }
       ]

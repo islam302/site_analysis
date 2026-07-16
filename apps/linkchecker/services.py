@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib import robotparser
 from urllib.parse import urljoin, urlparse
 
@@ -247,3 +248,36 @@ def check_single_link(*, url: str, timeout: int | None = None) -> dict:
             "redirect_url": "",
             "error_detail": (str(exc) or "Connection error")[:500],
         }
+
+
+def quick_link_check(*, url: str, max_links: int = 100) -> dict:
+    """Fetch a page, check up to ``max_links`` links, and return a summary.
+
+    A lightweight, non-persisting variant used by the combined full report.
+    """
+    html = fetch_page_html(url=url)
+    links = extract_links(html_content=html, base_url=url)[:max_links]
+
+    counts = {c: 0 for c in StatusCategory.values}
+    broken_sample: list[dict] = []
+    with ThreadPoolExecutor(max_workers=settings.LINKCHECKER_MAX_WORKERS) as pool:
+        futures = {pool.submit(check_single_link, url=link["target_url"]): link for link in links}
+        for future in as_completed(futures):
+            link = futures[future]
+            outcome = future.result()
+            category = outcome["status_category"]
+            counts[category] = counts.get(category, 0) + 1
+            if category == StatusCategory.BROKEN and len(broken_sample) < 15:
+                broken_sample.append(
+                    {"target_url": link["target_url"], "http_status": outcome["http_status"]}
+                )
+
+    return {
+        "total_links": len(links),
+        "healthy": counts[StatusCategory.HEALTHY],
+        "broken": counts[StatusCategory.BROKEN],
+        "redirects": counts[StatusCategory.REDIRECT],
+        "timeouts": counts[StatusCategory.TIMEOUT],
+        "errors": counts[StatusCategory.ERROR],
+        "broken_links": broken_sample,
+    }

@@ -46,6 +46,8 @@ def run_full_report_task(self, report_id: str) -> str:
             "gtmetrix": result["gtmetrix"]["status"],
             "accessibility": result["accessibility"]["status"],
             "ssl": result["ssl"]["status"],
+            "links": result["links"]["status"],
+            "structured_data": result["structured_data"]["status"],
         }
         report.status = FullReportStatus.COMPLETED
         report.error_message = ""

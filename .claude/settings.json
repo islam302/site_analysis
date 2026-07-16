@@ -20,7 +20,9 @@
       "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --file docs/openapi.yaml)",
       "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --format openapi-json --file docs/openapi.json)",
       "Bash(DB_ENGINE=django.db.backends.sqlite3 DB_NAME=:memory: python manage.py spectacular --file /tmp/s.yml)",
-      "Bash(docker build *)"
+      "Bash(docker build *)",
+      "Bash(ls apps/common)",
+      "Bash(ls apps/core)"
     ]
   }
 }

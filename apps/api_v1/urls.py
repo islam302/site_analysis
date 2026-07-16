@@ -18,4 +18,6 @@ urlpatterns = [
     path("ssl/", include("apps.ssl_check.urls")),
     path("crawl/", include("apps.linkchecker.urls")),
     path("full_report/", include("apps.full_report.urls")),
+    # Validator mounts two sibling prefixes: validate/ and validations/.
+    path("", include("apps.validator.urls")),
 ]

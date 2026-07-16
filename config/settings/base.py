@@ -54,6 +54,7 @@ LOCAL_APPS = [
     "apps.ssl_check",
     "apps.linkchecker",
     "apps.full_report",
+    "apps.validator",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -169,6 +170,9 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.common.exceptions.custom_exception_handler",
+    # Free up ``?format=`` as a query filter (validator filters schemas by
+    # ``format``); DRF's content-negotiation override moves to ``response_format``.
+    "URL_FORMAT_OVERRIDE": "response_format",
     "DEFAULT_THROTTLE_CLASSES": (
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.AnonRateThrottle",
@@ -185,6 +189,9 @@ REST_FRAMEWORK = {
         # Link-checker crawl submissions (per client IP).
         "crawl_burst": "3/min",
         "crawl_daily": "20/day",
+        # Structured-data validation submissions (per authenticated user).
+        "validator_burst": "10/min",
+        "validator_daily": "200/day",
     },
     "TEST_REQUEST_DEFAULT_FORMAT": "json",
 }
@@ -226,6 +233,8 @@ SPECTACULAR_SETTINGS = {
         "ReportStatusEnum": "apps.analysis.constants.ReportStatus.choices",
         "FullReportStatusEnum": "apps.full_report.constants.FullReportStatus.choices",
         "CrawlStatusEnum": "apps.linkchecker.constants.CrawlStatus.choices",
+        # NB: ValidationStatus has the same choice set as FullReportStatus, so it
+        # reuses FullReportStatusEnum — a separate override would be a duplicate.
     },
 }
 
@@ -330,6 +339,21 @@ GTMETRIX_REQUEST_TIMEOUT = config("GTMETRIX_REQUEST_TIMEOUT", default=30, cast=i
 # Polling for an async GTmetrix test to finish.
 GTMETRIX_POLL_INTERVAL = config("GTMETRIX_POLL_INTERVAL", default=5, cast=int)
 GTMETRIX_POLL_MAX_SECONDS = config("GTMETRIX_POLL_MAX_SECONDS", default=300, cast=int)
+
+# ---------------------------------------------------------------------------
+# Full report — which tools to run
+# ---------------------------------------------------------------------------
+# Comma-separated list of the tools the combined full report should run. Any
+# tool omitted here is skipped (marked "not included" in the PDF and reported as
+# "skipped" in tools_status). Valid keys:
+#   pagespeed, gtmetrix, accessibility, ssl, links, structured_data
+# Example (turn GTmetrix off when out of credits):
+#   FULL_REPORT_TOOLS=pagespeed,accessibility,ssl,links,structured_data
+FULL_REPORT_TOOLS = config(
+    "FULL_REPORT_TOOLS",
+    default="pagespeed,gtmetrix,accessibility,ssl,links,structured_data",
+    cast=Csv(),
+)
 
 # Tokens for email verification & password reset (seconds).
 EMAIL_VERIFICATION_TIMEOUT = 60 * 60 * 24  # 24 hours

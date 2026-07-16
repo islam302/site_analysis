@@ -1527,6 +1527,152 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/validate/:
+    post:
+      operationId: validate_create
+      description: POST /validate/ — queue structured-data validation for a URL.
+      summary: Submit a URL for structured-data validation
+      tags:
+      - validate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitValidationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubmitValidationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubmitValidationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - ApiKeyAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationJob'
+          description: ''
+  /api/v1/validations/:
+    get:
+      operationId: validations_list
+      description: Read validation jobs and their schemas/issues (owner-only).
+      summary: List your validation jobs
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - validations
+      security:
+      - jwtAuth: []
+      - ApiKeyAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedValidationJobListList'
+          description: ''
+  /api/v1/validations/{id}/:
+    get:
+      operationId: validations_retrieve
+      description: Read validation jobs and their schemas/issues (owner-only).
+      summary: Get a job with all schemas and issues
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this validation job.
+        required: true
+      tags:
+      - validations
+      security:
+      - jwtAuth: []
+      - ApiKeyAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationJob'
+          description: ''
+  /api/v1/validations/{id}/issues/:
+    get:
+      operationId: validations_issues_retrieve
+      description: Read validation jobs and their schemas/issues (owner-only).
+      summary: List all issues (filter by severity)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this validation job.
+        required: true
+      tags:
+      - validations
+      security:
+      - jwtAuth: []
+      - ApiKeyAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaIssue'
+          description: ''
+  /api/v1/validations/{id}/schemas/:
+    get:
+      operationId: validations_schemas_retrieve
+      description: Read validation jobs and their schemas/issues (owner-only).
+      summary: List schemas found (filter by type, format, is_valid)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this validation job.
+        required: true
+      tags:
+      - validations
+      security:
+      - jwtAuth: []
+      - ApiKeyAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaItem'
+          description: ''
 components:
   schemas:
     AdminUser:
@@ -2180,6 +2326,16 @@ components:
       - description
       - id
       - transaction_type
+    FormatEnum:
+      enum:
+      - json-ld
+      - microdata
+      - rdfa
+      type: string
+      description: |-
+        * `json-ld` - JSON-LD
+        * `microdata` - Microdata
+        * `rdfa` - RDFa
     FullReport:
       type: object
       description: Job status + a ``download_url`` for the PDF once completed.
@@ -2736,6 +2892,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SpeedTestList'
+    PaginatedValidationJobListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationJobList'
     PasswordResetConfirmRequest:
       type: object
       properties:
@@ -3009,6 +3188,88 @@ components:
       - id
       - status
       - url
+    SchemaIssue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        severity:
+          allOf:
+          - $ref: '#/components/schemas/SeverityEnum'
+          readOnly: true
+        field:
+          type: string
+          readOnly: true
+        message:
+          type: string
+          readOnly: true
+        suggestion:
+          type: string
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - field
+      - id
+      - message
+      - severity
+      - suggestion
+    SchemaItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        schema_type:
+          type: string
+          readOnly: true
+        format:
+          allOf:
+          - $ref: '#/components/schemas/FormatEnum'
+          readOnly: true
+        is_valid:
+          type: boolean
+          readOnly: true
+        google_rich_result_eligible:
+          type: boolean
+          readOnly: true
+        raw_data:
+          readOnly: true
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/SchemaIssue'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - format
+      - google_rich_result_eligible
+      - id
+      - is_valid
+      - issues
+      - raw_data
+      - schema_type
+    SeverityEnum:
+      enum:
+      - error
+      - warning
+      - info
+      type: string
+      description: |-
+        * `error` - Error
+        * `warning` - Warning
+        * `info` - Info
     SpeedTest:
       type: object
       description: Full combined result with both nested reports.
@@ -3149,6 +3410,16 @@ components:
           default: false
       required:
       - url
+    SubmitValidationRequest:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+          minLength: 1
+          maxLength: 2048
+      required:
+      - url
     TokenRefresh:
       type: object
       properties:
@@ -3232,6 +3503,107 @@ components:
       - last_name
       - role
       - username
+    ValidationJob:
+      type: object
+      description: Full job with every schema and its issues nested.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        url:
+          type: string
+          format: uri
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/FullReportStatusEnum'
+          readOnly: true
+        total_schemas_found:
+          type: integer
+          readOnly: true
+        total_errors:
+          type: integer
+          readOnly: true
+        total_warnings:
+          type: integer
+          readOnly: true
+        has_json_ld:
+          type: boolean
+          readOnly: true
+        has_microdata:
+          type: boolean
+          readOnly: true
+        has_rdfa:
+          type: boolean
+          readOnly: true
+        error_message:
+          type: string
+          readOnly: true
+          nullable: true
+        schemas:
+          type: array
+          items:
+            $ref: '#/components/schemas/SchemaItem'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - error_message
+      - has_json_ld
+      - has_microdata
+      - has_rdfa
+      - id
+      - schemas
+      - status
+      - total_errors
+      - total_schemas_found
+      - total_warnings
+      - updated_at
+      - url
+    ValidationJobList:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        url:
+          type: string
+          format: uri
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/FullReportStatusEnum'
+          readOnly: true
+        total_schemas_found:
+          type: integer
+          readOnly: true
+        total_errors:
+          type: integer
+          readOnly: true
+        total_warnings:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - status
+      - total_errors
+      - total_schemas_found
+      - total_warnings
+      - url
     VerifyEmailRequest:
       type: object
       properties:

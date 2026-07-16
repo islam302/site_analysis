@@ -18,6 +18,8 @@ REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
     "audit": None,
     "crawl_burst": None,
     "crawl_daily": None,
+    "validator_burst": None,
+    "validator_daily": None,
 }
 
 # Fast password hashing for the test suite.
@@ -26,6 +28,17 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 # Run Celery tasks synchronously inside the calling process.
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# Full report: run all tools in tests regardless of the developer's local .env
+# (individual tests override this via the ``settings`` fixture when needed).
+FULL_REPORT_TOOLS = [
+    "pagespeed",
+    "gtmetrix",
+    "accessibility",
+    "ssl",
+    "links",
+    "structured_data",
+]
 
 # In-memory email + cache so tests never touch external services.
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"

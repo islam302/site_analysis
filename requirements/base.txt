@@ -30,7 +30,7 @@ requests>=2.32,<3.0
 # SSL/TLS scanning (local, no external API)
 sslyze>=6.0,<7.0
 
-# Broken-link checker (async HTTP + HTML parsing)
+# Broken-link checker + structured-data validator (async HTTP + HTML parsing)
 httpx>=0.27,<1.0
 beautifulsoup4>=4.12,<5.0
 lxml>=5.0,<6.0

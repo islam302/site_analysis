@@ -21,7 +21,9 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from apps.full_report.explanations import get_explanations
 from apps.full_report.labels import LABELS
+from apps.full_report.recommendations import build_recommendations, recommendations_intro
 
 logger = logging.getLogger("apps.full_report")
 
@@ -140,6 +142,65 @@ def _kv_table(builder: _Builder, rows: list[list[str]], widths) -> Table:
     return table
 
 
+def _metric_table(builder: _Builder, entries: list[tuple], widths=(95 * mm, 79 * mm)) -> Table:
+    """A Metric/Result table where each row carries a small grey explanation line
+    underneath it (spanning the full width). ``entries`` is a list of
+    ``(label, result, explanation)`` — pass ``""`` as explanation to omit the note.
+    """
+    tr = builder.tr
+    hstyle = builder.style("mh", fontName=builder.font_bold, fontSize=9.5, textColor=colors.white)
+    mstyle = builder.style("ml", fontName=builder.font_bold, fontSize=9.5, textColor=NAVY)
+    rstyle = builder.style("mr", fontSize=9.5, textColor=NAVY)
+    nstyle = builder.style("mn", fontSize=8, textColor=MUTED, leading=10.5)
+
+    w = list(widths)
+    header = [builder.p(tr["metric"], hstyle), builder.p(tr["result"], hstyle)]
+    if builder.rtl:
+        header = list(reversed(header))
+        w = list(reversed(w))
+
+    data = [header]
+    cmds = [
+        ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+        ("BOX", (0, 0), (-1, -1), 0.4, LINE),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.4, LINE),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "RIGHT" if builder.rtl else "LEFT"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 7),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+
+    row = 1
+    for block, (label, result, note) in enumerate(entries):
+        mv = [builder.p(label, mstyle), builder.p(str(result), rstyle)]
+        if builder.rtl:
+            mv = list(reversed(mv))
+        bg = colors.white if block % 2 == 0 else STRIPE
+        data.append(mv)
+        if note:
+            data.append([builder.p(note, nstyle), ""])
+            cmds += [
+                ("SPAN", (0, row + 1), (-1, row + 1)),
+                ("BACKGROUND", (0, row), (-1, row + 1), bg),
+                ("LINEBELOW", (0, row + 1), (-1, row + 1), 0.4, LINE),
+                ("BOTTOMPADDING", (0, row), (-1, row), 1),
+                ("TOPPADDING", (0, row + 1), (-1, row + 1), 0),
+            ]
+            row += 2
+        else:
+            cmds += [
+                ("BACKGROUND", (0, row), (-1, row), bg),
+                ("LINEBELOW", (0, row), (-1, row), 0.4, LINE),
+            ]
+            row += 1
+
+    table = Table(data, colWidths=w)
+    table.setStyle(TableStyle(cmds))
+    return table
+
+
 def _banner(builder: _Builder) -> Table:
     tr = builder.tr
     title_style = builder.style("bt", fontName=builder.font_bold, fontSize=20,
@@ -219,6 +280,11 @@ def _fail_note(builder: _Builder, error: str) -> Paragraph:
     return builder.p(f"{builder.tr['could_not_run']}: {error}", s)
 
 
+def _skip_note(builder: _Builder) -> Paragraph:
+    s = builder.style("skip", textColor=MUTED, fontSize=9.5)
+    return builder.p(builder.tr["not_included"], s)
+
+
 def _fmt(value, suffix=""):
     return "—" if value is None else f"{value}{suffix}"
 
@@ -258,6 +324,7 @@ def build_report_pdf(report: dict, lang: str = "en") -> bytes:
     """Return PDF bytes for a combined report. ``lang`` is ``en`` or ``ar``."""
     b = _Builder(lang)
     tr = b.tr
+    ex = get_explanations(b.lang)  # per-metric plain-language notes
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4, title="Website Analysis Report",
@@ -277,7 +344,9 @@ def build_report_pdf(report: dict, lang: str = "en") -> bytes:
     # 1) PageSpeed --------------------------------------------------------
     story.append(_section_title(b, 1, tr["ps_title"]))
     ps = report["pagespeed"]
-    if ps["status"] != "ok":
+    if ps["status"] == "skipped":
+        story.append(_skip_note(b))
+    elif ps["status"] != "ok":
         story.append(_fail_note(b, ps["error"]))
     else:
         d = ps["data"]
@@ -288,53 +357,58 @@ def build_report_pdf(report: dict, lang: str = "en") -> bytes:
             (tr["seo"], d.get("seo_score")),
         ]))
         story.append(Spacer(1, 3 * mm))
-        story.append(_kv_table(b, [
-            [tr["metric"], tr["result"]],
-            [tr["fcp"], _fmt(d.get("first_contentful_paint"), " s")],
-            [tr["lcp"], _fmt(d.get("largest_contentful_paint"), " s")],
-            [tr["tbt"], _fmt(d.get("total_blocking_time"), " ms")],
-            [tr["cls"], _fmt(d.get("cumulative_layout_shift"))],
-            [tr["si"], _fmt(d.get("speed_index"), " s")],
-        ], [95 * mm, 79 * mm]))
+        story.append(_metric_table(b, [
+            (tr["performance"], _fmt(d.get("performance_score")), ex["performance"]),
+            (tr["accessibility"], _fmt(d.get("accessibility_score")), ex["accessibility"]),
+            (tr["best_practices"], _fmt(d.get("best_practices_score")), ex["best_practices"]),
+            (tr["seo"], _fmt(d.get("seo_score")), ex["seo"]),
+            (tr["fcp"], _fmt(d.get("first_contentful_paint"), " s"), ex["fcp"]),
+            (tr["lcp"], _fmt(d.get("largest_contentful_paint"), " s"), ex["lcp"]),
+            (tr["tbt"], _fmt(d.get("total_blocking_time"), " ms"), ex["tbt"]),
+            (tr["cls"], _fmt(d.get("cumulative_layout_shift")), ex["cls"]),
+            (tr["si"], _fmt(d.get("speed_index"), " s"), ex["si"]),
+        ]))
     story.append(Spacer(1, 5 * mm))
 
     # 2) GTmetrix ---------------------------------------------------------
     story.append(_section_title(b, 2, tr["gtm_title"]))
     gtm = report["gtmetrix"]
-    if gtm["status"] != "ok":
+    if gtm["status"] == "skipped":
+        story.append(_skip_note(b))
+    elif gtm["status"] != "ok":
         story.append(_fail_note(b, gtm["error"]))
     else:
         d = gtm["data"]
         pb = d.get("page_bytes")
-        story.append(_kv_table(b, [
-            [tr["metric"], tr["result"]],
-            [tr["grade"], d.get("gtmetrix_grade") or "—"],
-            [tr["performance"], _fmt(d.get("performance_score"))],
-            [tr["structure"], _fmt(d.get("structure_score"))],
-            [tr["lcp"], _fmt(d.get("largest_contentful_paint"), " ms")],
-            [tr["tbt"], _fmt(d.get("total_blocking_time"), " ms")],
-            [tr["fully_loaded"], _fmt(d.get("fully_loaded_time"), " ms")],
-            [tr["page_size"], f"{round(pb / 1024)} KB" if pb else "—"],
-            [tr["requests"], _fmt(d.get("page_requests"))],
-        ], [95 * mm, 79 * mm]))
+        story.append(_metric_table(b, [
+            (tr["grade"], d.get("gtmetrix_grade") or "—", ex["grade"]),
+            (tr["performance"], _fmt(d.get("performance_score")), ex["performance"]),
+            (tr["structure"], _fmt(d.get("structure_score")), ex["structure"]),
+            (tr["lcp"], _fmt(d.get("largest_contentful_paint"), " ms"), ex["lcp"]),
+            (tr["tbt"], _fmt(d.get("total_blocking_time"), " ms"), ex["tbt"]),
+            (tr["fully_loaded"], _fmt(d.get("fully_loaded_time"), " ms"), ex["fully_loaded"]),
+            (tr["page_size"], f"{round(pb / 1024)} KB" if pb else "—", ex["page_size"]),
+            (tr["requests"], _fmt(d.get("page_requests")), ex["requests"]),
+        ]))
     story.append(Spacer(1, 5 * mm))
 
     # 3) Accessibility ----------------------------------------------------
     story.append(_section_title(b, 3, tr["wave_title"]))
     wave = report["accessibility"]
-    if wave["status"] != "ok":
+    if wave["status"] == "skipped":
+        story.append(_skip_note(b))
+    elif wave["status"] != "ok":
         story.append(_fail_note(b, wave["error"]))
     else:
         d = wave["data"]
-        story.append(_kv_table(b, [
-            [tr["metric"], tr["result"]],
-            [tr["wcag"], d.get("wcag_level") or tr["fails"]],
-            [tr["errors"], _fmt(d.get("total_errors", 0))],
-            [tr["contrast"], _fmt(d.get("total_contrast_errors", 0))],
-            [tr["alerts"], _fmt(d.get("total_alerts", 0))],
-            [tr["features"], _fmt(d.get("total_features", 0))],
-            [tr["structural"], _fmt(d.get("total_structural", 0))],
-        ], [95 * mm, 79 * mm]))
+        story.append(_metric_table(b, [
+            (tr["wcag"], d.get("wcag_level") or tr["fails"], ex["wcag"]),
+            (tr["errors"], _fmt(d.get("total_errors", 0)), ex["errors"]),
+            (tr["contrast"], _fmt(d.get("total_contrast_errors", 0)), ex["contrast"]),
+            (tr["alerts"], _fmt(d.get("total_alerts", 0)), ex["alerts"]),
+            (tr["features"], _fmt(d.get("total_features", 0)), ex["features"]),
+            (tr["structural"], _fmt(d.get("total_structural", 0)), ex["structural"]),
+        ]))
         top = d.get("top_issues") or []
         if top:
             story.append(Spacer(1, 3 * mm))
@@ -349,7 +423,9 @@ def build_report_pdf(report: dict, lang: str = "en") -> bytes:
     # 4) SSL / TLS security ----------------------------------------------
     story.append(_section_title(b, 4, tr["ssl_title"]))
     ssl = report.get("ssl", {"status": "failed", "error": "not run", "data": {}})
-    if ssl["status"] != "ok":
+    if ssl["status"] == "skipped":
+        story.append(_skip_note(b))
+    elif ssl["status"] != "ok":
         story.append(_fail_note(b, ssl["error"]))
     else:
         d = ssl["data"]
@@ -358,13 +434,120 @@ def build_report_pdf(report: dict, lang: str = "en") -> bytes:
         expires = d.get("cert_expires_in_days")
         trusted = d.get("cert_is_trusted")
         vulns = [k for k, v in (d.get("vulnerabilities") or {}).items() if v]
-        story.append(_kv_table(b, [
-            [tr["metric"], tr["result"]],
-            [tr["ssl_protocols"], ", ".join(d.get("protocols") or []) or "—"],
-            [tr["ssl_cert_expiry"], f"{expires} {tr['days']}" if expires is not None else "—"],
-            [tr["ssl_trusted"], (tr["yes"] if trusted else tr["no"]) if trusted is not None else "—"],
-            [tr["ssl_vulns"], ", ".join(vulns) if vulns else tr["none_found"]],
-        ], [95 * mm, 79 * mm]))
+        story.append(_metric_table(b, [
+            (tr["ssl_protocols"], ", ".join(d.get("protocols") or []) or "—", ex["ssl_protocols"]),
+            (tr["ssl_cert_expiry"],
+             f"{expires} {tr['days']}" if expires is not None else "—", ex["ssl_cert_expiry"]),
+            (tr["ssl_trusted"],
+             (tr["yes"] if trusted else tr["no"]) if trusted is not None else "—",
+             ex["ssl_trusted"]),
+            (tr["ssl_vulns"], ", ".join(vulns) if vulns else tr["none_found"], ex["ssl_vulns"]),
+        ]))
+    story.append(Spacer(1, 5 * mm))
+
+    # 5) Broken link check ------------------------------------------------
+    story.append(_section_title(b, 5, tr["links_title"]))
+    links = report.get("links", {"status": "failed", "error": "not run", "data": {}})
+    if links["status"] == "skipped":
+        story.append(_skip_note(b))
+    elif links["status"] != "ok":
+        story.append(_fail_note(b, links["error"]))
+    else:
+        d = links["data"]
+        story.append(_metric_table(b, [
+            (tr["links_total"], _fmt(d.get("total_links", 0)), ex["links_total"]),
+            (tr["links_healthy"], _fmt(d.get("healthy", 0)), ex["links_healthy"]),
+            (tr["links_broken"], _fmt(d.get("broken", 0)), ex["links_broken"]),
+            (tr["links_redirects"], _fmt(d.get("redirects", 0)), ex["links_redirects"]),
+            (tr["links_timeouts"], _fmt(d.get("timeouts", 0)), ex["links_timeouts"]),
+        ]))
+        broken = d.get("broken_links") or []
+        if broken:
+            story.append(Spacer(1, 3 * mm))
+            story.append(b.p(tr["links_broken_list"], muted))
+            rows = [[tr["status_col"], tr["link_col"]]]
+            for item in broken:
+                rows.append([str(item.get("http_status") or "—"), item.get("target_url", "")])
+            story.append(_kv_table(b, rows, [24 * mm, 150 * mm]))
+
+    story.append(Spacer(1, 5 * mm))
+
+    # 6) Structured data (Schema.org) -------------------------------------
+    story.append(_section_title(b, 6, tr["sd_title"]))
+    sd = report.get("structured_data", {"status": "failed", "error": "not run", "data": {}})
+    if sd["status"] == "skipped":
+        story.append(_skip_note(b))
+    elif sd["status"] != "ok":
+        story.append(_fail_note(b, sd["error"]))
+    elif sd["data"].get("total_schemas", 0) == 0:
+        story.append(b.p(tr["sd_none"], muted))
+    else:
+        d = sd["data"]
+        formats = []
+        if d.get("has_json_ld"):
+            formats.append(tr["sd_json_ld"])
+        if d.get("has_microdata"):
+            formats.append(tr["sd_microdata"])
+        if d.get("has_rdfa"):
+            formats.append(tr["sd_rdfa"])
+        story.append(_metric_table(b, [
+            (tr["sd_total"], _fmt(d.get("total_schemas", 0)), ex["sd_total"]),
+            (tr["sd_valid"], _fmt(d.get("valid_schemas", 0)), ex["sd_valid"]),
+            (tr["sd_rich"], _fmt(d.get("rich_result_eligible", 0)), ex["sd_rich"]),
+            (tr["sd_errors"], _fmt(d.get("total_errors", 0)), ex["sd_errors"]),
+            (tr["sd_warnings"], _fmt(d.get("total_warnings", 0)), ex["sd_warnings"]),
+            (tr["sd_formats"], ", ".join(formats) or "—", ex["sd_formats"]),
+        ]))
+        types = d.get("schemas") or []
+        if types:
+            story.append(Spacer(1, 3 * mm))
+            story.append(b.p(tr["sd_types_found"], muted))
+            rows = [[tr["sd_type_col"], tr["sd_format_col"], tr["sd_valid_col"]]]
+            for item in types:
+                rows.append([
+                    item.get("schema_type", ""),
+                    item.get("format", ""),
+                    tr["yes"] if item.get("is_valid") else tr["no"],
+                ])
+            story.append(_kv_table(b, rows, [80 * mm, 64 * mm, 30 * mm]))
+        issues = d.get("issues") or []
+        if issues:
+            story.append(Spacer(1, 3 * mm))
+            story.append(b.p(tr["sd_issues_list"], muted))
+            rows = [[tr["sd_type_col"], tr["sd_field_col"], tr["issue"]]]
+            for item in issues:
+                rows.append([
+                    item.get("schema_type", ""),
+                    item.get("field", ""),
+                    item.get("message", ""),
+                ])
+            story.append(_kv_table(b, rows, [30 * mm, 50 * mm, 94 * mm]))
+    story.append(Spacer(1, 5 * mm))
+
+    # 7) Recommendations --------------------------------------------------
+    story.append(_section_title(b, 7, tr["rec_title"]))
+    story.append(b.p(recommendations_intro(b.lang), muted))
+    story.append(Spacer(1, 2 * mm))
+    rec_style = b.style("rec", fontSize=10, textColor=NAVY, leading=15)
+    recs = build_recommendations(report, b.lang)
+    rows = [[b.p(f"{i}.  {rec}", rec_style)] for i, rec in enumerate(recs, 1)]
+    rec_table = Table(rows, colWidths=[174 * mm])
+    rec_table.setStyle(
+        TableStyle(
+            [
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, STRIPE]),
+                ("LINEBEFORE", ((-1, 0) if b.rtl else (0, 0)),
+                 ((-1, -1) if b.rtl else (0, -1)), 3, ACCENT),
+                ("GRID", (0, 0), (-1, -1), 0.4, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    story.append(rec_table)
 
     story.append(Spacer(1, 8 * mm))
     story.append(b.p(tr["ratings_note"], muted))

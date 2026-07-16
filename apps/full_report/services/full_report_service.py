@@ -11,12 +11,15 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
+from django.conf import settings
 from django.utils import timezone
 
 from apps.analysis.services.pagespeed_client import fetch_pagespeed, parse_pagespeed
 from apps.audits.services.wave_client import fetch_wave, parse_wave
 from apps.gtmetrix.services.gtmetrix_client import run_gtmetrix_test
+from apps.linkchecker.services import quick_link_check
 from apps.ssl_check.services.sslyze_scanner import run_ssl_scan
+from apps.validator.services import quick_schema_check
 
 logger = logging.getLogger("apps.full_report")
 
@@ -27,6 +30,11 @@ def _ok(data: dict) -> dict:
 
 def _failed(exc: Exception) -> dict:
     return {"status": "failed", "data": {}, "error": str(exc)}
+
+
+def _skipped() -> dict:
+    """A tool disabled via ``settings.FULL_REPORT_TOOLS`` — not run at all."""
+    return {"status": "skipped", "data": {}, "error": ""}
 
 
 def _run_pagespeed(url: str, strategy: str) -> dict:
@@ -73,38 +81,64 @@ def _run_ssl(url: str) -> dict:
         return _failed(exc)
 
 
+def _run_links(url: str) -> dict:
+    try:
+        return _ok(quick_link_check(url=url, max_links=1000))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Link check failed in full report: %s", exc)
+        return _failed(exc)
+
+
+def _run_schema(url: str) -> dict:
+    try:
+        return _ok(quick_schema_check(url=url))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Structured-data check failed in full report: %s", exc)
+        return _failed(exc)
+
+
+# Canonical tool key -> the callable that runs it (order = PDF section order).
+_TOOL_RUNNERS = {
+    "pagespeed": lambda url, strategy: _run_pagespeed(url, strategy),
+    "gtmetrix": lambda url, strategy: _run_gtmetrix(url),
+    "accessibility": lambda url, strategy: _run_wave(url),
+    "ssl": lambda url, strategy: _run_ssl(url),
+    "links": lambda url, strategy: _run_links(url),
+    "structured_data": lambda url, strategy: _run_schema(url),
+}
+
+
+def enabled_tools() -> list[str]:
+    """The tools enabled via ``settings.FULL_REPORT_TOOLS`` (invalid keys ignored)."""
+    configured = {str(t).strip() for t in settings.FULL_REPORT_TOOLS}
+    return [key for key in _TOOL_RUNNERS if key in configured]
+
+
 def run_full_report(*, url: str, strategy: str) -> dict:
-    """Run PageSpeed + GTmetrix + WAVE concurrently and return a combined dict.
+    """Run the enabled tools concurrently and return a combined dict.
 
-    Nothing is written to the database. The return value is consumed by
-    :func:`build_report_pdf`.
+    Which tools run is controlled by ``settings.FULL_REPORT_TOOLS``; any tool not
+    listed there is marked ``"skipped"`` and never executed. Nothing is written to
+    the database. The return value is consumed by :func:`build_report_pdf`.
     """
-    logger.info("Full report started", extra={"url": url, "strategy": strategy})
+    active = enabled_tools()
+    logger.info(
+        "Full report started",
+        extra={"url": url, "strategy": strategy, "tools": ",".join(active)},
+    )
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        f_pagespeed = pool.submit(_run_pagespeed, url, strategy)
-        f_gtmetrix = pool.submit(_run_gtmetrix, url)
-        f_wave = pool.submit(_run_wave, url)
-        f_ssl = pool.submit(_run_ssl, url)
+    report = {"url": url, "strategy": strategy, "generated_at": timezone.now()}
 
-        report = {
-            "url": url,
-            "strategy": strategy,
-            "generated_at": timezone.now(),
-            "pagespeed": f_pagespeed.result(),
-            "gtmetrix": f_gtmetrix.result(),
-            "accessibility": f_wave.result(),
-            "ssl": f_ssl.result(),
-        }
+    with ThreadPoolExecutor(max_workers=max(1, len(active))) as pool:
+        futures = {key: pool.submit(_TOOL_RUNNERS[key], url, strategy) for key in active}
+        results = {key: future.result() for key, future in futures.items()}
+
+    # Every canonical key is always present; disabled tools are "skipped".
+    for key in _TOOL_RUNNERS:
+        report[key] = results.get(key, _skipped())
 
     logger.info(
         "Full report finished",
-        extra={
-            "url": url,
-            "pagespeed": report["pagespeed"]["status"],
-            "gtmetrix": report["gtmetrix"]["status"],
-            "accessibility": report["accessibility"]["status"],
-            "ssl": report["ssl"]["status"],
-        },
+        extra={"url": url, **{key: report[key]["status"] for key in _TOOL_RUNNERS}},
     )
     return report

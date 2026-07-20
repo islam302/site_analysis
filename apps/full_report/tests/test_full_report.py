@@ -161,6 +161,59 @@ def test_arabic_pdf_embeds_tajawal(mocker):
     assert b"Tajawal" in pdf
 
 
+def test_overall_score_averages_all_tools():
+    """Overall rating = equal-weight mean of every tool that ran successfully."""
+    from apps.full_report.services.pdf_builder import _overall_score
+
+    report = {
+        # PageSpeed sub-score = mean(40,60,55,70) = 56
+        "pagespeed": {"status": "ok", "data": {
+            "performance_score": 40, "accessibility_score": 60,
+            "best_practices_score": 55, "seo_score": 70}},
+        # GTmetrix sub-score = mean(80,90) = 85
+        "gtmetrix": {"status": "ok", "data": {
+            "performance_score": 80, "structure_score": 90}},
+        # SSL grade A -> 95
+        "ssl": {"status": "ok", "data": {"grade": "A", "vulnerabilities": {}}},
+        # Links: 9/10 healthy -> 90
+        "links": {"status": "ok", "data": {"total_links": 10, "broken": 1}},
+        # skipped / no-data tools are excluded
+        "accessibility": {"status": "skipped", "data": {}},
+        "structured_data": {"status": "ok", "data": {"total_schemas": 0}},
+    }
+    # mean(56, 85, 95, 90) = 81.5 -> 82
+    assert _overall_score(report) == 82
+
+
+def test_overall_score_none_when_no_tool_scores():
+    from apps.full_report.services.pdf_builder import _overall_score
+
+    assert _overall_score({"pagespeed": {"status": "failed", "error": "x"}}) is None
+    assert _overall_score({}) is None
+
+
+def test_overall_score_penalises_accessibility_errors():
+    from apps.full_report.services.pdf_builder import _accessibility_score, _ssl_score
+
+    assert _accessibility_score({"total_errors": 99}) == 0          # 100 - 297 -> clamp 0
+    assert _accessibility_score({"total_errors": 5}) == 85          # 100 - 15
+    assert _ssl_score({"grade": "A", "vulnerabilities": {"heartbleed": True}}) == 40  # capped
+
+
+def test_summary_box_color_tracks_threshold():
+    """Green fill at/above 70, red below — the < 70 rule the report must honour."""
+    from apps.full_report.services import pdf_builder as pb
+
+    assert pb._summary_colors(85) == (pb.GOOD, pb.GOOD_BG)
+    assert pb._summary_colors(70) == (pb.GOOD, pb.GOOD_BG)
+    assert pb._summary_colors(69) == (pb.POOR, pb.POOR_BG)
+    assert pb._summary_colors(None) == (pb.MUTED, pb.NA_BG)
+    # And the box actually builds for each case.
+    b = pb._Builder("ar")
+    for s in (85, 69, None):
+        assert pb._summary_box(b, s) is not None
+
+
 def test_font_fallback_substitutes_missing_isolated_forms():
     """Tajawal omits isolated presentation forms; the fallback must swap them for
     the base letter so text never renders as tofu boxes."""

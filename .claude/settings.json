@@ -41,7 +41,10 @@
       "PowerShell(git -C d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis status --porcelain assets)",
       "PowerShell(if \\($?\\) { \"IGNORED\" } else { \"tracked-ok\" })",
       "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; $env:PYTHONIOENCODING=\"utf-8\"; python d:\\\\tmp\\\\final_check.py 2>&1 | Select-Object -Last 12)",
-      "PowerShell($env:PYTHONIOENCODING=\"utf-8\"; python -m pytest apps/full_report/tests/ -q 2>&1 | Select-Object -Last 20)"
+      "PowerShell($env:PYTHONIOENCODING=\"utf-8\"; python -m pytest apps/full_report/tests/ -q 2>&1 | Select-Object -Last 20)",
+      "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; $env:PYTHONIOENCODING=\"utf-8\"; python d:\\\\tmp\\\\box_check.py 2>&1 | Select-Object -Last 12)",
+      "PowerShell($env:PYTHONIOENCODING=\"utf-8\"; python -m pytest apps/full_report/tests/ -q 2>&1 | Select-Object -Last 25)",
+      "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; python d:\\\\tmp\\\\overall_check.py 2>&1 | Select-Object -Last 10; Remove-Item -Force d:\\\\tmp\\\\overall_check.py)"
     ]
   }
 }

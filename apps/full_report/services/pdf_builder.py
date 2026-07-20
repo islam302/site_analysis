@@ -345,6 +345,140 @@ def _grade_badge(builder: _Builder, grade: str) -> Table:
     return table
 
 
+def _mean_score(*values):
+    """Mean of the numeric values, rounded; ``None`` if none are numeric."""
+    nums = [v for v in values if isinstance(v, (int, float))]
+    return round(sum(nums) / len(nums)) if nums else None
+
+
+def _clamp(value: float) -> int:
+    return int(max(0, min(100, round(value))))
+
+
+def _pagespeed_score(d: dict):
+    return _mean_score(
+        d.get("performance_score"), d.get("accessibility_score"),
+        d.get("best_practices_score"), d.get("seo_score"),
+    )
+
+
+def _gtmetrix_score(d: dict):
+    return _mean_score(d.get("performance_score"), d.get("structure_score"))
+
+
+def _accessibility_score(d: dict):
+    """WAVE has no native 0-100 score; derive one by penalising errors."""
+    errors = d.get("total_errors") or 0
+    contrast = d.get("total_contrast_errors") or 0
+    return _clamp(100 - 3 * errors - 2 * contrast)
+
+
+_SSL_GRADE_SCORE = {"A+": 100, "A": 95, "B": 80, "C": 65, "D": 50, "F": 30, "T": 30}
+
+
+def _ssl_score(d: dict):
+    base = _SSL_GRADE_SCORE.get((d.get("grade") or "").upper())
+    if base is None:
+        return None
+    if d.get("cert_is_trusted") is False:
+        base = min(base, 40)
+    if any((d.get("vulnerabilities") or {}).values()):
+        base = min(base, 40)
+    return base
+
+
+def _links_score(d: dict):
+    total = d.get("total_links") or 0
+    if not total:
+        return None
+    return _clamp(100 * (total - (d.get("broken") or 0)) / total)
+
+
+def _structured_data_score(d: dict):
+    total = d.get("total_schemas") or 0
+    if not total:
+        return None  # no schemas on the page -> nothing to score, excluded
+    valid = d.get("valid_schemas") or 0
+    return _clamp(100 * valid / total - 5 * (d.get("total_errors") or 0))
+
+
+# Per-tool scorer applied when that tool ran successfully. Each tool contributes
+# one equally-weighted 0-100 vote to the overall rating.
+_TOOL_SCORERS = {
+    "pagespeed": _pagespeed_score,
+    "gtmetrix": _gtmetrix_score,
+    "accessibility": _accessibility_score,
+    "ssl": _ssl_score,
+    "links": _links_score,
+    "structured_data": _structured_data_score,
+}
+
+
+def _overall_score(report: dict):
+    """Overall 0-100 site rating: the mean of every tool's sub-score. Each of the
+    six tools is converted to 0-100 and weighted equally; tools that were skipped,
+    failed, or produced nothing to score are left out. ``None`` if no tool scored."""
+    subs = []
+    for key, scorer in _TOOL_SCORERS.items():
+        tool = report.get(key, {})
+        if tool.get("status") != "ok":
+            continue
+        sub = scorer(tool.get("data") or {})
+        if sub is not None:
+            subs.append(sub)
+    return round(sum(subs) / len(subs)) if subs else None
+
+
+PASS_THRESHOLD = 70  # overall score at/above this is green ("pass"), below is red
+
+
+def _summary_colors(score) -> tuple[colors.Color, colors.Color]:
+    """Pick (foreground, background) for the summary box: green ≥ 70, red < 70,
+    grey when there is no score."""
+    if score is None:
+        return MUTED, NA_BG
+    if score >= PASS_THRESHOLD:
+        return GOOD, GOOD_BG
+    return POOR, POOR_BG
+
+
+def _summary_box(builder: _Builder, score) -> Table:
+    """A large footer box (green ≥ 70, red < 70) holding the overall rating, the
+    ratings legend, and the attribution line."""
+    tr = builder.tr
+    color, bg = _summary_colors(score)
+
+    head = builder.style("sbh", fontName=builder.font_bold, fontSize=17,
+                         textColor=color, alignment=TA_CENTER, leading=22)
+    note = builder.style("sbn", fontName=builder.font_bold, fontSize=12,
+                         textColor=NAVY, alignment=TA_CENTER, leading=17)
+    foot = builder.style("sbf", fontName=builder.font_bold, fontSize=12,
+                         textColor=color, alignment=TA_CENTER, leading=17)
+
+    score_txt = f"{tr['overall']}: {score} / 100" if score is not None else tr["overall_na"]
+    cells = [
+        [builder.p(score_txt, head)],
+        [builder.p(tr["ratings_note"], note)],
+        [builder.p(tr["footer"], foot)],
+    ]
+    t = Table(cells, colWidths=[174 * mm])
+    t.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), bg),
+                ("BOX", (0, 0), (-1, -1), 2.5, color),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (0, 0), 10),
+                ("BOTTOMPADDING", (0, -1), (-1, -1), 10),
+                ("TOPPADDING", (0, 1), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
+    return t
+
+
 def build_report_pdf(report: dict, lang: str = "en") -> bytes:
     """Return PDF bytes for a combined report. ``lang`` is ``en`` or ``ar``."""
     b = _Builder(lang)
@@ -575,8 +709,7 @@ def build_report_pdf(report: dict, lang: str = "en") -> bytes:
     story.append(rec_table)
 
     story.append(Spacer(1, 8 * mm))
-    story.append(b.p(tr["ratings_note"], muted))
-    story.append(b.p(tr["footer"], muted))
+    story.append(_summary_box(b, _overall_score(report)))
 
     doc.build(story)
     return buffer.getvalue()

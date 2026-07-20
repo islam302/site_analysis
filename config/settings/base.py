@@ -7,6 +7,7 @@ read from the environment via :mod:`python-decouple`.
 from datetime import timedelta
 from pathlib import Path
 
+from celery.schedules import crontab
 from decouple import Csv, config
 
 # ---------------------------------------------------------------------------
@@ -271,6 +272,18 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+
+# How long a generated full-report PDF is kept before it is purged (minutes).
+FULL_REPORT_RETENTION_MINUTES = config("FULL_REPORT_RETENTION_MINUTES", default=30, cast=int)
+
+# Periodic jobs. django-celery-beat syncs this into the DB scheduler on startup.
+CELERY_BEAT_SCHEDULE = {
+    "purge-expired-full-reports": {
+        "task": "apps.full_report.tasks.purge_expired_full_reports",
+        # Run every 10 minutes; reports live at most retention + 10 min.
+        "schedule": crontab(minute="*/10"),
+    },
+}
 
 # ---------------------------------------------------------------------------
 # Email

@@ -8,10 +8,13 @@ whole job failed.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from urllib.parse import urlparse
 
 from celery import shared_task
+from django.conf import settings
 from django.core.files.base import ContentFile
+from django.utils import timezone
 
 from apps.full_report.constants import FullReportStatus
 from apps.full_report.models import FullReport
@@ -61,3 +64,26 @@ def run_full_report_task(self, report_id: str) -> str:
 
     logger.info("Full report completed", extra={"report_id": report_id})
     return report.status
+
+
+@shared_task
+def purge_expired_full_reports() -> int:
+    """Delete full reports (and their PDF files) older than the retention window.
+
+    Runs periodically via Celery beat. Uses ``all_objects`` so soft-deleted rows
+    are purged too, and removes the file from storage before deleting the row.
+    Returns the number of reports removed.
+    """
+    cutoff = timezone.now() - timedelta(minutes=settings.FULL_REPORT_RETENTION_MINUTES)
+    expired = FullReport.all_objects.filter(created_at__lt=cutoff)
+
+    removed = 0
+    for report in expired.iterator():
+        if report.file:
+            report.file.delete(save=False)  # remove the PDF from storage
+        report.delete()
+        removed += 1
+
+    if removed:
+        logger.info("Purged %d expired full report(s) older than %s", removed, cutoff)
+    return removed

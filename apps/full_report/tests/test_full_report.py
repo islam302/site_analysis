@@ -9,7 +9,7 @@ from apps.audits.tests.factories import fake_wave_payload
 from apps.full_report.constants import FullReportStatus
 from apps.full_report.models import FullReport
 from apps.full_report.services import build_report_pdf, run_full_report
-from apps.full_report.tasks import run_full_report_task
+from apps.full_report.tasks import purge_expired_full_reports, run_full_report_task
 from apps.gtmetrix.tests.factories import fake_gtmetrix_result
 from apps.ssl_check.tests.factories import fake_ssl_scan_result
 
@@ -187,6 +187,53 @@ def test_task_missing_report_is_safe():
     import uuid
 
     assert run_full_report_task(report_id=str(uuid.uuid4())) == "missing"
+
+
+# --- retention / auto-purge -------------------------------------------------
+def test_purge_removes_expired_reports_and_files(mocker, settings, tmp_path):
+    import os
+    from datetime import timedelta
+
+    from django.core.files.base import ContentFile
+    from django.utils import timezone
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    settings.FULL_REPORT_RETENTION_MINUTES = 60
+
+    old = FullReport.objects.create(url="https://old.com", strategy="mobile", lang="en")
+    old.file.save("old.pdf", ContentFile(b"%PDF-old"), save=True)
+    file_path = old.file.path
+    # Backdate past the retention window (bypasses default=timezone.now).
+    FullReport.all_objects.filter(pk=old.pk).update(
+        created_at=timezone.now() - timedelta(minutes=61)
+    )
+
+    fresh = FullReport.objects.create(url="https://new.com", strategy="mobile", lang="en")
+
+    removed = purge_expired_full_reports()
+
+    assert removed == 1
+    assert not FullReport.all_objects.filter(pk=old.pk).exists()
+    assert not os.path.exists(file_path)
+    assert FullReport.all_objects.filter(pk=fresh.pk).exists()
+
+
+def test_purge_includes_soft_deleted_rows(settings, tmp_path):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    settings.FULL_REPORT_RETENTION_MINUTES = 60
+
+    report = FullReport.objects.create(url="https://x.com", strategy="mobile", lang="en")
+    report.soft_delete()
+    FullReport.all_objects.filter(pk=report.pk).update(
+        created_at=timezone.now() - timedelta(minutes=90)
+    )
+
+    assert purge_expired_full_reports() == 1
+    assert not FullReport.all_objects.filter(pk=report.pk).exists()
 
 
 # --- API (async) ------------------------------------------------------------

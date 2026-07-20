@@ -4,18 +4,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    # Arabic-capable font for the PDF reports (FreeSans covers Arabic + Latin).
-    PDF_ARABIC_FONT=/usr/share/fonts/truetype/freefont/FreeSans.ttf \
-    PDF_ARABIC_FONT_BOLD=/usr/share/fonts/truetype/freefont/FreeSansBold.ttf \
     # Shared location for the Playwright Chromium (link checker JS rendering).
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app
 
-# libpq-dev/gcc for psycopg build fallbacks; curl for the healthcheck;
-# fonts-freefont-ttf so the Arabic PDF renders.
+# libpq-dev/gcc for psycopg build fallbacks; curl for the healthcheck.
+# The Arabic PDF font (Tajawal) is bundled in the repo (assets/fonts).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpq-dev gcc curl fonts-freefont-ttf && \
+        libpq-dev gcc curl && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements/base.txt requirements/production.txt ./requirements/

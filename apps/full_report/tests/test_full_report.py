@@ -153,6 +153,26 @@ def test_build_report_pdf_arabic(mocker):
     assert pdf.startswith(b"%PDF") and len(pdf) > 1000
 
 
+def test_arabic_pdf_embeds_tajawal(mocker):
+    """The ar PDF must embed the bundled Tajawal font, not fall back to Helvetica."""
+    _mock_all(mocker)
+    report = run_full_report(url="https://example.com", strategy="mobile")
+    pdf = build_report_pdf(report, lang="ar")
+    assert b"Tajawal" in pdf
+
+
+def test_font_fallback_substitutes_missing_isolated_forms():
+    """Tajawal omits isolated presentation forms; the fallback must swap them for
+    the base letter so text never renders as tofu boxes."""
+    from apps.full_report.services import pdf_builder
+
+    pdf_builder._ensure_arabic_font()  # registers Tajawal, populates the cmap
+    # U+FE8D (ALEF ISOLATED FORM) is absent from Tajawal -> base ALEF U+0627.
+    assert pdf_builder._font_fallback("ﺍ") == "ا"
+    # A glyph the font already has passes through untouched.
+    assert pdf_builder._font_fallback("م") == "م"
+
+
 # --- async task -------------------------------------------------------------
 def test_task_completes_and_saves_pdf(mocker, settings, tmp_path):
     settings.MEDIA_ROOT = str(tmp_path)

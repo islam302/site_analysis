@@ -9,6 +9,7 @@ All display text passes through :meth:`_Builder.t` which applies these for ``ar`
 from __future__ import annotations
 
 import logging
+import unicodedata
 from io import BytesIO
 
 from django.conf import settings
@@ -47,11 +48,12 @@ GOOD_BG, WARN_BG, POOR_BG, NA_BG = (
 )
 
 _ARABIC_FONT = None  # resolved font family name once registered ("AR" or fallback)
+_ARABIC_CMAP: frozenset[int] = frozenset()  # codepoints the registered Arabic font has
 
 
 def _ensure_arabic_font() -> str:
     """Register the Arabic TTF once; return its family name (fallback: Helvetica)."""
-    global _ARABIC_FONT
+    global _ARABIC_FONT, _ARABIC_CMAP
     if _ARABIC_FONT is not None:
         return _ARABIC_FONT
     try:
@@ -59,11 +61,34 @@ def _ensure_arabic_font() -> str:
         bold = settings.PDF_ARABIC_FONT_BOLD or settings.PDF_ARABIC_FONT
         pdfmetrics.registerFont(TTFont("AR-Bold", bold))
         pdfmetrics.registerFontFamily("AR", normal="AR", bold="AR-Bold")
+        _ARABIC_CMAP = frozenset(pdfmetrics.getFont("AR").face.charToGlyph)
         _ARABIC_FONT = "AR"
     except Exception as exc:  # noqa: BLE001 - degrade gracefully if font missing
         logger.warning("Arabic font unavailable (%s); Arabic text may not render.", exc)
         _ARABIC_FONT = "Helvetica"
     return _ARABIC_FONT
+
+
+def _font_fallback(text: str) -> str:
+    """Swap any presentation-form glyph the font lacks for its base letter.
+
+    Sans fonts like Tajawal shape Arabic via OpenType and omit the *isolated*
+    presentation forms (U+FE8D …) that ``arabic_reshaper`` emits, which would
+    render as tofu boxes. The base letter decomposes to the same isolated shape,
+    so we substitute it whenever the exact form is missing. Font-agnostic no-op
+    when the font already covers everything (e.g. Arial).
+    """
+    if not _ARABIC_CMAP:
+        return text
+    out = []
+    for ch in text:
+        if ord(ch) in _ARABIC_CMAP:
+            out.append(ch)
+            continue
+        decomposed = unicodedata.normalize("NFKD", ch)
+        repl = "".join(c for c in decomposed if ord(c) in _ARABIC_CMAP)
+        out.append(repl or ch)
+    return "".join(out)
 
 
 def _rating(score, tr) -> tuple[str, colors.Color, colors.Color]:
@@ -100,7 +125,7 @@ class _Builder:
         """Shape + bidi-reorder text for Arabic; identity for English."""
         text = "" if text is None else str(text)
         if self.rtl and text:
-            return self._bidi(self._reshape(text))
+            return _font_fallback(self._bidi(self._reshape(text)))
         return text
 
     def style(self, name, **kw) -> ParagraphStyle:

@@ -29,7 +29,19 @@
       "PowerShell(python -m pytest apps/full_report/tests/test_full_report.py -q -k \"purge or task_completes or soft_deleted\" 2>&1)",
       "PowerShell(python -m pip install -r requirements/test.txt -q 2>&1)",
       "PowerShell(python -m pytest apps/full_report/tests/ -q 2>&1)",
-      "PowerShell(python -c \"import django, os; os.environ.setdefault\\('DJANGO_SETTINGS_MODULE','config.settings.development'\\); django.setup\\(\\); from django.conf import settings; print\\('retention_min=', settings.FULL_REPORT_RETENTION_MINUTES\\); print\\('beat=', list\\(settings.CELERY_BEAT_SCHEDULE.keys\\(\\)\\)\\)\" 2>&1)"
+      "PowerShell(python -c \"import django, os; os.environ.setdefault\\('DJANGO_SETTINGS_MODULE','config.settings.development'\\); django.setup\\(\\); from django.conf import settings; print\\('retention_min=', settings.FULL_REPORT_RETENTION_MINUTES\\); print\\('beat=', list\\(settings.CELERY_BEAT_SCHEDULE.keys\\(\\)\\)\\)\" 2>&1)",
+      "PowerShell(python d:\\\\tmp\\\\diag_font.py 2>&1)",
+      "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; python d:\\\\tmp\\\\diag_font.py 2>&1 | Select-Object -Last 20)",
+      "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; python d:\\\\tmp\\\\gen_ar_pdf.py 2>&1 | Select-Object -Last 20)",
+      "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; python d:\\\\tmp\\\\probe_font.py 2>&1 | Select-Object -Last 10)",
+      "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; python d:\\\\tmp\\\\scan_tajawal.py 2>&1 | Select-Object -Last 12)",
+      "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; $env:PYTHONIOENCODING=\"utf-8\"; python d:\\\\tmp\\\\check_all_labels.py 2>&1 | Select-Object -Last 25)",
+      "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; $env:PYTHONIOENCODING=\"utf-8\"; python d:\\\\tmp\\\\verify_fallback.py 2>&1 | Select-Object -Last 10)",
+      "PowerShell(git -C d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis check-ignore assets/fonts/tajawal/Tajawal-Regular.ttf)",
+      "PowerShell(git -C d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis status --porcelain assets)",
+      "PowerShell(if \\($?\\) { \"IGNORED\" } else { \"tracked-ok\" })",
+      "PowerShell($env:PYTHONPATH=\"d:\\\\CODING\\\\UNA_Ai_Tools\\\\site_analysis\"; $env:PYTHONIOENCODING=\"utf-8\"; python d:\\\\tmp\\\\final_check.py 2>&1 | Select-Object -Last 12)",
+      "PowerShell($env:PYTHONIOENCODING=\"utf-8\"; python -m pytest apps/full_report/tests/ -q 2>&1 | Select-Object -Last 20)"
     ]
   }
 }

@@ -374,9 +374,12 @@ PASSWORD_RESET_TIMEOUT = 60 * 60  # 1 hour
 
 # ---------------------------------------------------------------------------
 # PDF reports — Arabic-capable TTF font (needed to render the ``ar`` version).
+# Tajawal (Google Fonts, OFL) is bundled in the repo so Arabic renders
+# identically on every machine — no reliance on OS-installed fonts.
 # ---------------------------------------------------------------------------
-PDF_ARABIC_FONT = config("PDF_ARABIC_FONT", default=r"C:\Windows\Fonts\arial.ttf")
-PDF_ARABIC_FONT_BOLD = config("PDF_ARABIC_FONT_BOLD", default=r"C:\Windows\Fonts\arialbd.ttf")
+_TAJAWAL_DIR = BASE_DIR / "assets" / "fonts" / "tajawal"
+PDF_ARABIC_FONT = config("PDF_ARABIC_FONT", default=str(_TAJAWAL_DIR / "Tajawal-Regular.ttf"))
+PDF_ARABIC_FONT_BOLD = config("PDF_ARABIC_FONT_BOLD", default=str(_TAJAWAL_DIR / "Tajawal-Bold.ttf"))
 
 # ---------------------------------------------------------------------------
 # Logging

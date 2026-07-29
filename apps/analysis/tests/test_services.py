@@ -88,3 +88,58 @@ def test_fetch_pagespeed_without_key_raises(settings):
     settings.GOOGLE_PAGESPEED_API_KEY = ""
     with pytest.raises(PageSpeedConfigError):
         fetch_pagespeed(url="https://example.com", strategy="mobile")
+
+
+# --- retry on transient errors ----------------------------------------------
+def _resp(status_code, json_body=None):
+    """Build a fake requests.Response-like object for the client to consume."""
+    import requests
+
+    r = requests.Response()
+    r.status_code = status_code
+    if json_body is not None:
+        import json as _json
+
+        r._content = _json.dumps(json_body).encode()
+    return r
+
+
+def test_fetch_pagespeed_retries_transient_400_then_succeeds(mocker, settings):
+    settings.GOOGLE_PAGESPEED_API_KEY = "k"
+    settings.PAGESPEED_MAX_RETRIES = 2
+    mocker.patch("apps.analysis.services.pagespeed_client.time.sleep")  # no real waiting
+    ok = fake_pagespeed_payload()
+    mocker.patch(
+        "apps.analysis.services.pagespeed_client.requests.get",
+        side_effect=[_resp(400, {"error": {"message": "Lighthouse timed out"}}),
+                     _resp(200, ok)],
+    )
+    assert fetch_pagespeed(url="https://slow.example", strategy="desktop") == ok
+
+
+def test_fetch_pagespeed_gives_up_after_retries_with_real_message(mocker, settings):
+    settings.GOOGLE_PAGESPEED_API_KEY = "k"
+    settings.PAGESPEED_MAX_RETRIES = 1
+    sleep = mocker.patch("apps.analysis.services.pagespeed_client.time.sleep")
+    mocker.patch(
+        "apps.analysis.services.pagespeed_client.requests.get",
+        return_value=_resp(500, {"error": {"message": "Backend error"}}),
+    )
+    with pytest.raises(PageSpeedAPIError) as exc:
+        fetch_pagespeed(url="https://x.example", strategy="desktop")
+    assert "Backend error" in str(exc.value)  # Google's real reason is surfaced
+    assert sleep.call_count == 1  # 2 attempts -> slept once between them
+
+
+def test_fetch_pagespeed_does_not_retry_non_retryable(mocker, settings):
+    settings.GOOGLE_PAGESPEED_API_KEY = "k"
+    settings.PAGESPEED_MAX_RETRIES = 3
+    sleep = mocker.patch("apps.analysis.services.pagespeed_client.time.sleep")
+    get = mocker.patch(
+        "apps.analysis.services.pagespeed_client.requests.get",
+        return_value=_resp(403, {"error": {"message": "API key invalid"}}),
+    )
+    with pytest.raises(PageSpeedAPIError):
+        fetch_pagespeed(url="https://x.example", strategy="desktop")
+    assert get.call_count == 1  # 403 is not transient -> no retry
+    sleep.assert_not_called()

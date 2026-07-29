@@ -308,6 +308,9 @@ CORS_ALLOW_CREDENTIALS = True
 # ---------------------------------------------------------------------------
 GOOGLE_PAGESPEED_API_KEY = config("GOOGLE_PAGESPEED_API_KEY", default="")
 PAGESPEED_REQUEST_TIMEOUT = config("PAGESPEED_REQUEST_TIMEOUT", default=60, cast=int)
+# Slow sites make Google's Lighthouse return a transient 400/5xx; retry a few times.
+PAGESPEED_MAX_RETRIES = config("PAGESPEED_MAX_RETRIES", default=2, cast=int)
+PAGESPEED_RETRY_BACKOFF = config("PAGESPEED_RETRY_BACKOFF", default=2.0, cast=float)
 
 # ---------------------------------------------------------------------------
 # SSL/TLS scanning (sslyze — local scanner, no external API or key)
@@ -362,9 +365,11 @@ GTMETRIX_POLL_MAX_SECONDS = config("GTMETRIX_POLL_MAX_SECONDS", default=300, cas
 #   pagespeed, gtmetrix, accessibility, ssl, links, structured_data
 # Example (turn GTmetrix off when out of credits):
 #   FULL_REPORT_TOOLS=pagespeed,accessibility,ssl,links,structured_data
+# NOTE: "accessibility" (WAVE) is off by default — it is a paid API and fails with
+# "Not enough credits" when the balance runs out. Add it back once WAVE is funded.
 FULL_REPORT_TOOLS = config(
     "FULL_REPORT_TOOLS",
-    default="pagespeed,gtmetrix,accessibility,ssl,links,structured_data",
+    default="pagespeed,gtmetrix,ssl,links,structured_data",
     cast=Csv(),
 )
 

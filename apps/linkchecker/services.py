@@ -44,7 +44,7 @@ def _verify() -> bool:
 # --------------------------------------------------------------------------- #
 @transaction.atomic
 def submit_crawl(
-    *, url: str, crawl_depth: int = 1, max_links: int | None = None, render_js: bool = False
+    *, url: str, crawl_depth: int = 1, max_links: int | None = None, render_js: bool = True
 ) -> CrawlJob:
     """Create a pending CrawlJob and dispatch the async link-check task."""
     job = CrawlJob.objects.create(

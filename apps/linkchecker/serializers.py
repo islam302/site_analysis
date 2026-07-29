@@ -12,7 +12,7 @@ class SubmitCrawlSerializer(serializers.Serializer):
     )
     crawl_depth = serializers.IntegerField(required=False, default=1, min_value=1, max_value=3)
     max_links = serializers.IntegerField(required=False, default=500, min_value=1, max_value=5000)
-    render_js = serializers.BooleanField(required=False, default=False)
+    render_js = serializers.BooleanField(required=False, default=True)
 
 
 class CrawlJobSerializer(serializers.ModelSerializer):

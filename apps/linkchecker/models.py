@@ -25,7 +25,7 @@ class CrawlJob(BaseModel):
     crawl_depth = models.IntegerField(default=1)
     max_links = models.IntegerField(default=500)
     render_js = models.BooleanField(
-        default=False,
+        default=True,
         help_text="Render the page with a headless browser (for JS/SPA sites).",
     )
     duration_seconds = models.FloatField(null=True, blank=True)

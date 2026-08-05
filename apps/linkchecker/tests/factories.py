@@ -11,6 +11,9 @@ class CrawlJobFactory(factory.django.DjangoModelFactory):
 
     url = factory.Sequence(lambda n: f"https://example{n}.com/")
     status = CrawlStatus.PENDING
+    # Keep crawls on the httpx path by default so respx can mock them; the
+    # render path is exercised explicitly where needed (render_js=True).
+    render_js = False
 
 
 class CompletedCrawlJobFactory(CrawlJobFactory):
